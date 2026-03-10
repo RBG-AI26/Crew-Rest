@@ -296,32 +296,6 @@ function generateEqualRestPatternOptions(config) {
   let candidatesChecked = 0;
   let truncated = false;
 
-  const targetPerCrew = Math.floor(
-    calculateBreakWindowLength(config.shiftStart, config.shiftEnd) / config.crewCount
-  );
-  const allowedShortCountsByCrew = [];
-
-  for (let crew = 1; crew <= config.crewCount; crew += 1) {
-    const shortDuration = config.shortBreakDurationsByCrew[crew];
-    const allowed = [];
-    for (let shortCount = 0; shortCount <= config.rounds; shortCount += 1) {
-      const longCount = config.rounds - shortCount;
-      const shortTotal = shortCount * shortDuration;
-      const longTotalNeeded = targetPerCrew - shortTotal;
-      if (longTotalNeeded < 0) {
-        continue;
-      }
-      if (longCount === 0 && longTotalNeeded !== 0) {
-        continue;
-      }
-      allowed.push(shortCount);
-    }
-    if (!allowed.length) {
-      return { options: [], truncated: false };
-    }
-    allowedShortCountsByCrew.push(allowed);
-  }
-
   function evaluateCandidate() {
     if (truncated) {
       return false;
@@ -353,7 +327,7 @@ function generateEqualRestPatternOptions(config) {
     return true;
   }
 
-  function assignCrewPattern(crewIndex) {
+  function assignCrewPattern(crewIndex, shortCountPerCrew) {
     if (truncated) {
       return false;
     }
@@ -364,21 +338,30 @@ function generateEqualRestPatternOptions(config) {
 
     const crewSlots = slotIndexesByCrew[crewIndex];
     const chosenSlots = [];
-    const allowedShortCounts = allowedShortCountsByCrew[crewIndex];
 
-    function chooseSlots(startIndex, picksRemaining, onChosen) {
+    function chooseSlots(startIndex, picksRemaining) {
       if (truncated) {
         return false;
       }
 
       if (picksRemaining === 0) {
-        return onChosen();
+        for (const slotIndex of chosenSlots) {
+          patternTokens[slotIndex] = "S";
+        }
+
+        const recurse = assignCrewPattern(crewIndex + 1, shortCountPerCrew);
+
+        for (const slotIndex of chosenSlots) {
+          patternTokens[slotIndex] = "L";
+        }
+
+        return recurse;
       }
 
       const maxStart = crewSlots.length - picksRemaining;
       for (let i = startIndex; i <= maxStart; i += 1) {
         chosenSlots.push(crewSlots[i]);
-        const shouldContinue = chooseSlots(i + 1, picksRemaining - 1, onChosen);
+        const shouldContinue = chooseSlots(i + 1, picksRemaining - 1);
         chosenSlots.pop();
         if (!shouldContinue) {
           return false;
@@ -388,29 +371,15 @@ function generateEqualRestPatternOptions(config) {
       return true;
     }
 
-    for (const shortCount of allowedShortCounts) {
-      const shouldContinue = chooseSlots(0, shortCount, () => {
-        for (const slotIndex of chosenSlots) {
-          patternTokens[slotIndex] = "S";
-        }
-
-        const recurse = assignCrewPattern(crewIndex + 1);
-
-        for (const slotIndex of chosenSlots) {
-          patternTokens[slotIndex] = "L";
-        }
-
-        return recurse;
-      });
-      if (!shouldContinue) {
-        return false;
-      }
-    }
-
-    return true;
+    return chooseSlots(0, shortCountPerCrew);
   }
 
-  assignCrewPattern(0);
+  for (let shortCountPerCrew = 1; shortCountPerCrew < config.rounds; shortCountPerCrew += 1) {
+    if (!assignCrewPattern(0, shortCountPerCrew)) {
+      break;
+    }
+  }
+
   return { options, truncated };
 }
 
