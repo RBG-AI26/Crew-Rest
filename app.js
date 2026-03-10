@@ -8,8 +8,13 @@ const input = {
   shiftEnd: document.getElementById("shift-end"),
   crewCount: document.getElementById("crew-count"),
   rounds: document.getElementById("rounds"),
-  shortBreakWrap: document.getElementById("short-break-wrap"),
-  shortBreakDuration: document.getElementById("short-break-duration"),
+  shortBreakSyncToggle: document.getElementById("short-break-sync-toggle"),
+  shortBreakDuration1Wrap: document.getElementById("short-break-duration-1-wrap"),
+  shortBreakDuration1: document.getElementById("short-break-duration-1"),
+  shortBreakDuration2Wrap: document.getElementById("short-break-duration-2-wrap"),
+  shortBreakDuration2: document.getElementById("short-break-duration-2"),
+  shortBreakDuration3Wrap: document.getElementById("short-break-duration-3-wrap"),
+  shortBreakDuration3: document.getElementById("short-break-duration-3"),
   patternWrap: document.getElementById("pattern-wrap"),
   patternSequence: document.getElementById("pattern-sequence"),
 };
@@ -192,6 +197,46 @@ function applyPatternNormalization(field) {
   }
 }
 
+function shortBreakFieldForCrew(crew) {
+  if (crew === 1) {
+    return input.shortBreakDuration1;
+  }
+  if (crew === 2) {
+    return input.shortBreakDuration2;
+  }
+  return input.shortBreakDuration3;
+}
+
+function getShortBreakMode() {
+  return input.shortBreakSyncToggle.dataset.mode || "same";
+}
+
+function syncShortBreaksFromCrew1() {
+  const crewCount = Number(input.crewCount.value);
+  const value = input.shortBreakDuration1.value;
+  for (let crew = 2; crew <= crewCount; crew += 1) {
+    shortBreakFieldForCrew(crew).value = value;
+  }
+}
+
+function setShortBreakMode(mode, options = {}) {
+  const { copyFromCrew1 = true } = options;
+  const normalizedMode = mode === "different" ? "different" : "same";
+  const sameMode = normalizedMode === "same";
+  const crewCount = Number(input.crewCount.value);
+
+  input.shortBreakSyncToggle.dataset.mode = normalizedMode;
+  input.shortBreakSyncToggle.textContent = sameMode ? "Same" : "Different";
+  input.shortBreakSyncToggle.setAttribute("aria-pressed", sameMode ? "true" : "false");
+
+  input.shortBreakDuration2.disabled = sameMode;
+  input.shortBreakDuration3.disabled = sameMode || crewCount < 3;
+
+  if (sameMode && copyFromCrew1) {
+    syncShortBreaksFromCrew1();
+  }
+}
+
 function syncPatternLength() {
   const slotCount = Number(input.crewCount.value) * Number(input.rounds.value);
   if (!slotCount) {
@@ -213,12 +258,20 @@ function syncPatternLength() {
 
 function updateBreakInputsVisibility() {
   const rounds = Number(input.rounds.value);
+  const crewCount = Number(input.crewCount.value);
   const multiBreak = rounds > 1;
-
-  input.shortBreakWrap.hidden = !multiBreak;
   input.patternWrap.hidden = !multiBreak;
-  input.shortBreakDuration.required = false;
   input.patternSequence.required = false;
+  input.shortBreakSyncToggle.disabled = !multiBreak;
+
+  input.shortBreakDuration1Wrap.hidden = !multiBreak;
+  input.shortBreakDuration2Wrap.hidden = !multiBreak;
+  input.shortBreakDuration3Wrap.hidden = !multiBreak || crewCount < 3;
+  input.shortBreakDuration1.required = false;
+  input.shortBreakDuration2.required = false;
+  input.shortBreakDuration3.required = false;
+
+  setShortBreakMode(getShortBreakMode(), { copyFromCrew1: multiBreak });
 
   if (multiBreak) {
     syncPatternLength();
@@ -241,13 +294,22 @@ function crewOrder(crewCount, rounds) {
   return ordered;
 }
 
-function buildSlotDurations(config, breakWindowLength) {
+function buildSlotDurations(config, breakWindowLength, order) {
   const slotCount = config.crewCount * config.rounds;
 
   if (config.rounds > 1 && config.patternTokens) {
-    const shortCount = config.patternTokens.filter((token) => token === "S").length;
-    const longCount = config.patternTokens.length - shortCount;
-    const totalShort = config.shortBreakDuration * shortCount;
+    const getShortDuration = (crew) => config.shortBreakDurationsByCrew[crew];
+
+    let totalShort = 0;
+    let longCount = 0;
+    for (let i = 0; i < slotCount; i += 1) {
+      if (config.patternTokens[i] === "S") {
+        totalShort += getShortDuration(order[i]);
+      } else {
+        longCount += 1;
+      }
+    }
+
     const remainingMinutes = breakWindowLength - totalShort;
 
     if (remainingMinutes < 0) {
@@ -260,18 +322,18 @@ function buildSlotDurations(config, breakWindowLength) {
 
     const longBase = longCount > 0 ? Math.floor(remainingMinutes / longCount) : 0;
     let longRemainder = longCount > 0 ? remainingMinutes - longBase * longCount : 0;
-    const durations = [];
-
-    for (const token of config.patternTokens) {
+    const durations = Array(slotCount).fill(0);
+    for (let i = 0; i < slotCount; i += 1) {
+      const token = config.patternTokens[i];
       if (token === "S") {
-        durations.push(config.shortBreakDuration);
+        durations[i] = getShortDuration(order[i]);
       } else {
         let longDuration = longBase;
         if (longRemainder > 0) {
           longDuration += 1;
           longRemainder -= 1;
         }
-        durations.push(longDuration);
+        durations[i] = longDuration;
       }
     }
 
@@ -303,10 +365,9 @@ function calculateSchedule(config) {
     throw new Error("Break window is zero or negative for this shift.");
   }
 
-  const slotCount = config.crewCount * config.rounds;
-  const slotDurations = buildSlotDurations(config, breakWindowLength);
-
   const order = crewOrder(config.crewCount, config.rounds);
+  const slotCount = config.crewCount * config.rounds;
+  const slotDurations = buildSlotDurations(config, breakWindowLength, order);
   const slots = [];
 
   let cursor = breakWindowStart;
@@ -375,29 +436,54 @@ function readConfig() {
   const crewCount = Number(input.crewCount.value);
   const slotCount = crewCount * rounds;
   const multiBreak = rounds > 1;
+  const shortBreakMode = multiBreak ? getShortBreakMode() : "same";
   const patternTokens = multiBreak
     ? parsePatternTokens(input.patternSequence.value, slotCount)
     : null;
+  const patternUsesShortDurations = Boolean(
+    patternTokens && patternTokens.includes("S")
+  );
   const config = {
     shiftStart: parseClock(input.shiftStart.value, "Off"),
     shiftEnd: parseClock(input.shiftEnd.value, "All on"),
     crewCount,
     rounds,
-    shortBreakDuration:
-      multiBreak && patternTokens
-        ? parseDuration(input.shortBreakDuration.value, "Short break duration")
-        : null,
+    shortBreakDurationsByCrew: null,
     patternTokens,
   };
 
+  if (patternUsesShortDurations) {
+    const byCrew = {};
+    if (shortBreakMode === "same") {
+      const shared = parseDuration(input.shortBreakDuration1.value, "Crew 1 short break");
+      for (let crew = 1; crew <= crewCount; crew += 1) {
+        byCrew[crew] = shared;
+      }
+    } else {
+      for (let crew = 1; crew <= crewCount; crew += 1) {
+        byCrew[crew] = parseDuration(
+          shortBreakFieldForCrew(crew).value,
+          `Crew ${crew} short break`
+        );
+      }
+    }
+    config.shortBreakDurationsByCrew = byCrew;
+  }
+
   if (
     !allowedCrewCounts.includes(config.crewCount) ||
-    config.rounds < 1 ||
-    (config.patternTokens && config.shortBreakDuration <= 0)
+    config.rounds < 1
   ) {
     throw new Error(
       "Crew count must be 2 or 3. Check rounds and break duration settings."
     );
+  }
+
+  if (patternUsesShortDurations) {
+    const values = Object.values(config.shortBreakDurationsByCrew);
+    if (values.some((minutes) => minutes <= 0)) {
+      throw new Error("Crew short break durations must be greater than 0.");
+    }
   }
 
   return config;
@@ -411,7 +497,15 @@ function runCalculation() {
     if (Number(input.rounds.value) > 1) {
       applyPatternNormalization(input.patternSequence);
       if (String(input.patternSequence.value).trim()) {
-        applyDurationNormalization(input.shortBreakDuration);
+        if (getShortBreakMode() === "same") {
+          applyDurationNormalization(input.shortBreakDuration1);
+          syncShortBreaksFromCrew1();
+        } else {
+          const crewCount = Number(input.crewCount.value);
+          for (let crew = 1; crew <= crewCount; crew += 1) {
+            applyDurationNormalization(shortBreakFieldForCrew(crew));
+          }
+        }
       }
     }
     const config = readConfig();
@@ -436,14 +530,32 @@ input.crewCount.addEventListener("change", () => {
 input.rounds.addEventListener("change", () => {
   updateBreakInputsVisibility();
 });
+input.shortBreakSyncToggle.addEventListener("click", () => {
+  const nextMode = getShortBreakMode() === "same" ? "different" : "same";
+  setShortBreakMode(nextMode);
+});
 input.shiftStart.addEventListener("blur", () => {
   applyTimeNormalization(input.shiftStart);
 });
 input.shiftEnd.addEventListener("blur", () => {
   applyTimeNormalization(input.shiftEnd);
 });
-input.shortBreakDuration.addEventListener("blur", () => {
-  applyDurationNormalization(input.shortBreakDuration);
+input.shortBreakDuration1.addEventListener("input", () => {
+  if (getShortBreakMode() === "same") {
+    syncShortBreaksFromCrew1();
+  }
+});
+input.shortBreakDuration1.addEventListener("blur", () => {
+  applyDurationNormalization(input.shortBreakDuration1);
+  if (getShortBreakMode() === "same") {
+    syncShortBreaksFromCrew1();
+  }
+});
+input.shortBreakDuration2.addEventListener("blur", () => {
+  applyDurationNormalization(input.shortBreakDuration2);
+});
+input.shortBreakDuration3.addEventListener("blur", () => {
+  applyDurationNormalization(input.shortBreakDuration3);
 });
 input.patternSequence.addEventListener("blur", () => {
   applyPatternNormalization(input.patternSequence);

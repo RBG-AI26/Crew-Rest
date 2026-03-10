@@ -52,10 +52,44 @@
             Number of Breaks
             <input id="rounds" type="number" value="2" min="1" max="12" required />
           </label>
-          <label id="short-break-wrap" hidden>
-            Short break duration
+          <label id="short-break-duration-1-wrap" hidden>
+            <span class="short-break-label-row">
+              <span>Crew 1 short break</span>
+              <button
+                id="short-break-sync-toggle"
+                type="button"
+                class="mini-toggle"
+                aria-pressed="true"
+              >
+                Same
+              </button>
+            </span>
             <input
-              id="short-break-duration"
+              id="short-break-duration-1"
+              type="text"
+              value="2:30"
+              inputmode="numeric"
+              placeholder="HMM or H:MM"
+              maxlength="5"
+              title="Use duration format HMM or H:MM (for example 230 or 2:30)"
+            />
+          </label>
+          <label id="short-break-duration-2-wrap" hidden>
+            Crew 2 short break
+            <input
+              id="short-break-duration-2"
+              type="text"
+              value="2:30"
+              inputmode="numeric"
+              placeholder="HMM or H:MM"
+              maxlength="5"
+              title="Use duration format HMM or H:MM (for example 230 or 2:30)"
+            />
+          </label>
+          <label id="short-break-duration-3-wrap" hidden>
+            Crew 3 short break
+            <input
+              id="short-break-duration-3"
               type="text"
               value="2:30"
               inputmode="numeric"

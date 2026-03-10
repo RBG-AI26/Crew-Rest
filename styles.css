@@ -15,6 +15,7 @@
 
 body {
   margin: 0;
+  -webkit-text-size-adjust: 100%;
   font-family: "Avenir Next", "Segoe UI", sans-serif;
   color: var(--ink);
   background:
@@ -64,7 +65,12 @@ body {
 form {
   display: grid;
   gap: 0.75rem;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+form > label,
+form > .actions {
+  min-width: 0;
 }
 
 label {
@@ -74,15 +80,38 @@ label {
   color: var(--muted);
 }
 
+.short-break-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
 input,
 select {
   width: 100%;
+  height: 52px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 0.5rem 0.65rem;
-  font-size: 0.95rem;
+  padding: 0.55rem 0.7rem;
+  font-size: 16px;
+  line-height: 1.2;
   color: var(--ink);
   background: #fff;
+}
+
+select {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 2rem;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 16px) calc(50% - 2px),
+    calc(100% - 10px) calc(50% - 2px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
 }
 
 input:focus,
@@ -92,9 +121,7 @@ select:focus {
 }
 
 .actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+  display: grid;
   align-items: end;
 }
 
@@ -103,9 +130,29 @@ button {
   background: var(--accent);
   color: white;
   border-radius: 999px;
-  padding: 0.55rem 1rem;
-  font-size: 0.9rem;
+  min-height: 44px;
+  padding: 0.55rem 1.1rem;
+  font-size: 16px;
+  touch-action: manipulation;
   cursor: pointer;
+}
+
+.mini-toggle {
+  width: auto;
+  min-height: 32px;
+  padding: 0.2rem 0.7rem;
+  font-size: 0.82rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.mini-toggle[aria-pressed="false"] {
+  background: #fff;
+  color: var(--accent-strong);
+}
+
+.actions button {
+  width: 100%;
 }
 
 button:hover {
@@ -146,6 +193,7 @@ button:hover {
 
 .table-wrap {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 table {
@@ -156,7 +204,7 @@ table {
 
 th,
 td {
-  padding: 0.55rem 0.5rem;
+  padding: 0.7rem 0.55rem;
   border-bottom: 1px solid var(--line);
   text-align: left;
 }
@@ -174,6 +222,21 @@ th {
   min-height: 1.2em;
 }
 
+@media (max-width: 1180px) {
+  .page {
+    padding: 1.25rem;
+  }
+
+  form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.9rem;
+  }
+
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 700px) {
   .page {
     padding: 1rem;
@@ -181,5 +244,13 @@ th {
 
   .card {
     padding: 0.85rem;
+  }
+
+  form {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-grid {
+    grid-template-columns: 1fr;
   }
 }
