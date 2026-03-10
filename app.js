@@ -281,6 +281,10 @@ function generateEqualRestPatternOptions(config) {
     return { options: [], truncated: false };
   }
 
+  if (config.shortBreakDurationsByCrew && breakWindowLengthNotDivisible(config)) {
+    return { options: [], truncated: false };
+  }
+
   const order = crewOrder(config.crewCount, config.rounds);
   const slotIndexesByCrew = Array.from({ length: config.crewCount }, () => []);
   for (let slotIndex = 0; slotIndex < order.length; slotIndex += 1) {
@@ -291,6 +295,32 @@ function generateEqualRestPatternOptions(config) {
   const options = [];
   let candidatesChecked = 0;
   let truncated = false;
+
+  const targetPerCrew = Math.floor(
+    calculateBreakWindowLength(config.shiftStart, config.shiftEnd) / config.crewCount
+  );
+  const allowedShortCountsByCrew = [];
+
+  for (let crew = 1; crew <= config.crewCount; crew += 1) {
+    const shortDuration = config.shortBreakDurationsByCrew[crew];
+    const allowed = [];
+    for (let shortCount = 0; shortCount <= config.rounds; shortCount += 1) {
+      const longCount = config.rounds - shortCount;
+      const shortTotal = shortCount * shortDuration;
+      const longTotalNeeded = targetPerCrew - shortTotal;
+      if (longTotalNeeded < 0) {
+        continue;
+      }
+      if (longCount === 0 && longTotalNeeded !== 0) {
+        continue;
+      }
+      allowed.push(shortCount);
+    }
+    if (!allowed.length) {
+      return { options: [], truncated: false };
+    }
+    allowedShortCountsByCrew.push(allowed);
+  }
 
   function evaluateCandidate() {
     if (truncated) {
@@ -323,7 +353,7 @@ function generateEqualRestPatternOptions(config) {
     return true;
   }
 
-  function assignCrewPattern(crewIndex, shortCountPerCrew) {
+  function assignCrewPattern(crewIndex) {
     if (truncated) {
       return false;
     }
@@ -334,30 +364,21 @@ function generateEqualRestPatternOptions(config) {
 
     const crewSlots = slotIndexesByCrew[crewIndex];
     const chosenSlots = [];
+    const allowedShortCounts = allowedShortCountsByCrew[crewIndex];
 
-    function chooseSlots(startIndex, picksRemaining) {
+    function chooseSlots(startIndex, picksRemaining, onChosen) {
       if (truncated) {
         return false;
       }
 
       if (picksRemaining === 0) {
-        for (const slotIndex of chosenSlots) {
-          patternTokens[slotIndex] = "S";
-        }
-
-        const shouldContinue = assignCrewPattern(crewIndex + 1, shortCountPerCrew);
-
-        for (const slotIndex of chosenSlots) {
-          patternTokens[slotIndex] = "L";
-        }
-
-        return shouldContinue;
+        return onChosen();
       }
 
       const maxStart = crewSlots.length - picksRemaining;
       for (let i = startIndex; i <= maxStart; i += 1) {
         chosenSlots.push(crewSlots[i]);
-        const shouldContinue = chooseSlots(i + 1, picksRemaining - 1);
+        const shouldContinue = chooseSlots(i + 1, picksRemaining - 1, onChosen);
         chosenSlots.pop();
         if (!shouldContinue) {
           return false;
@@ -367,16 +388,46 @@ function generateEqualRestPatternOptions(config) {
       return true;
     }
 
-    return chooseSlots(0, shortCountPerCrew);
-  }
+    for (const shortCount of allowedShortCounts) {
+      const shouldContinue = chooseSlots(0, shortCount, () => {
+        for (const slotIndex of chosenSlots) {
+          patternTokens[slotIndex] = "S";
+        }
 
-  for (let shortCountPerCrew = 1; shortCountPerCrew < config.rounds; shortCountPerCrew += 1) {
-    if (!assignCrewPattern(0, shortCountPerCrew)) {
-      break;
+        const recurse = assignCrewPattern(crewIndex + 1);
+
+        for (const slotIndex of chosenSlots) {
+          patternTokens[slotIndex] = "L";
+        }
+
+        return recurse;
+      });
+      if (!shouldContinue) {
+        return false;
+      }
     }
+
+    return true;
   }
 
+  assignCrewPattern(0);
   return { options, truncated };
+}
+
+function calculateBreakWindowLength(shiftStart, shiftEnd) {
+  let normalizedEnd = shiftEnd;
+  if (normalizedEnd <= shiftStart) {
+    normalizedEnd += 24 * 60;
+  }
+  return normalizedEnd - shiftStart;
+}
+
+function breakWindowLengthNotDivisible(config) {
+  const breakWindowLength = calculateBreakWindowLength(
+    config.shiftStart,
+    config.shiftEnd
+  );
+  return breakWindowLength % config.crewCount !== 0;
 }
 
 function setPatternOptions(options, truncated) {
@@ -470,42 +521,63 @@ function buildSlotDurations(config, breakWindowLength, order) {
   const slotCount = config.crewCount * config.rounds;
 
   if (config.rounds > 1 && config.patternTokens) {
-    const getShortDuration = (crew) => config.shortBreakDurationsByCrew[crew];
-
-    let totalShort = 0;
-    let longCount = 0;
-    for (let i = 0; i < slotCount; i += 1) {
-      if (config.patternTokens[i] === "S") {
-        totalShort += getShortDuration(order[i]);
-      } else {
-        longCount += 1;
-      }
-    }
-
-    const remainingMinutes = breakWindowLength - totalShort;
-
-    if (remainingMinutes < 0) {
-      throw new Error("Short break duration is too long for this shift.");
-    }
-
-    if (longCount === 0 && remainingMinutes !== 0) {
-      throw new Error("Pattern is all short breaks but does not fill the break window.");
-    }
-
-    const longBase = longCount > 0 ? Math.floor(remainingMinutes / longCount) : 0;
-    let longRemainder = longCount > 0 ? remainingMinutes - longBase * longCount : 0;
     const durations = Array(slotCount).fill(0);
+    const eachCrewTarget = breakWindowLength / config.crewCount;
+    if (!Number.isInteger(eachCrewTarget)) {
+      throw new Error(
+        "Break window cannot be split into equal whole-minute totals across crews."
+      );
+    }
+
+    const slotIndexesByCrew = Array.from({ length: config.crewCount }, () => []);
+    for (let i = 0; i < slotCount; i += 1) {
+      slotIndexesByCrew[order[i] - 1].push(i);
+    }
+
     for (let i = 0; i < slotCount; i += 1) {
       const token = config.patternTokens[i];
       if (token === "S") {
-        durations[i] = getShortDuration(order[i]);
-      } else {
-        let longDuration = longBase;
+        if (!config.shortBreakDurationsByCrew) {
+          throw new Error("Short break duration settings are required for this pattern.");
+        }
+        durations[i] = config.shortBreakDurationsByCrew[order[i]];
+      }
+    }
+
+    for (let crew = 1; crew <= config.crewCount; crew += 1) {
+      const crewSlotIndexes = slotIndexesByCrew[crew - 1];
+      const longSlotIndexes = crewSlotIndexes.filter(
+        (slotIndex) => config.patternTokens[slotIndex] === "L"
+      );
+      let crewShortTotal = 0;
+      for (const slotIndex of crewSlotIndexes) {
+        if (config.patternTokens[slotIndex] === "S") {
+          crewShortTotal += durations[slotIndex];
+        }
+      }
+
+      const longTotalNeeded = eachCrewTarget - crewShortTotal;
+      if (longTotalNeeded < 0) {
+        throw new Error(
+          `Crew ${crew} short breaks exceed the equal-rest target for this shift.`
+        );
+      }
+
+      if (!longSlotIndexes.length) {
+        if (longTotalNeeded !== 0) {
+          throw new Error("Pattern cannot produce equal total rest across crews.");
+        }
+        continue;
+      }
+
+      const longBase = Math.floor(longTotalNeeded / longSlotIndexes.length);
+      let longRemainder = longTotalNeeded - longBase * longSlotIndexes.length;
+      for (const slotIndex of longSlotIndexes) {
+        durations[slotIndex] = longBase;
         if (longRemainder > 0) {
-          longDuration += 1;
+          durations[slotIndex] += 1;
           longRemainder -= 1;
         }
-        durations[i] = longDuration;
       }
     }
 
