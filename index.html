@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Crew Rest</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="hero">
+        <h1>Crew Rest</h1>
+      </header>
+
+      <section class="card controls">
+        <h2>Inputs</h2>
+        <form id="config-form">
+          <label>
+            Off
+            <input
+              id="shift-start"
+              type="text"
+              value="00:00"
+              inputmode="numeric"
+              placeholder="HHMM or HH:MM"
+              maxlength="5"
+              title="Use 24-hour time (for example 1900 or 19:00)"
+              required
+            />
+          </label>
+          <label>
+            All on
+            <input
+              id="shift-end"
+              type="text"
+              value="17:00"
+              inputmode="numeric"
+              placeholder="HHMM or HH:MM"
+              maxlength="5"
+              title="Use 24-hour time (for example 0400 or 04:00)"
+              required
+            />
+          </label>
+          <label>
+            Crew count
+            <select id="crew-count" required>
+              <option value="2" selected>2</option>
+              <option value="3">3</option>
+            </select>
+          </label>
+          <label>
+            Number of Breaks
+            <input id="rounds" type="number" value="2" min="1" max="12" required />
+          </label>
+          <label id="short-break-wrap" hidden>
+            Short break duration
+            <input
+              id="short-break-duration"
+              type="text"
+              value="2:30"
+              inputmode="numeric"
+              placeholder="HMM or H:MM"
+              maxlength="5"
+              title="Use duration format HMM or H:MM (for example 230 or 2:30)"
+            />
+          </label>
+          <label id="pattern-wrap" hidden>
+            Pattern order (S/L)
+            <input
+              id="pattern-sequence"
+              type="text"
+              value="S,S,L,L"
+              placeholder="S,S,L,L"
+              title="Use S and L values (for example S,S,L,L or S,L,L,S)"
+            />
+          </label>
+          <div class="actions">
+            <button type="submit">Calculate</button>
+          </div>
+        </form>
+        <p id="error" class="error" role="alert"></p>
+      </section>
+
+      <section class="card">
+        <h2>Summary</h2>
+        <div id="summary" class="summary-grid"></div>
+      </section>
+
+      <section class="card">
+        <h2>Schedule</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Crew</th>
+                <th>Off</th>
+                <th>On</th>
+                <th>Duration</th>
+              </tr>
+            </thead>
+            <tbody id="schedule-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
