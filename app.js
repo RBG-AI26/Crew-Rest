@@ -21,8 +21,55 @@ const input = {
 const allowedCrewCounts = [2, 3];
 const maxPatternOptions = 200;
 const maxPatternCandidates = 100000;
+const formStateStorageKey = "crew-rest:last-form-state:v1";
 let lastAcceptedState = null;
 let isRevertingSelection = false;
+
+function saveFormState(state) {
+  try {
+    localStorage.setItem(formStateStorageKey, JSON.stringify(state));
+  } catch (err) {
+    // Ignore storage errors (private mode, disabled storage, etc).
+  }
+}
+
+function loadFormState() {
+  try {
+    const serialized = localStorage.getItem(formStateStorageKey);
+    if (!serialized) {
+      return null;
+    }
+
+    const parsed = JSON.parse(serialized);
+    if (!parsed || typeof parsed !== "object") {
+      return null;
+    }
+
+    const normalized = {
+      shiftStart: String(parsed.shiftStart ?? ""),
+      shiftEnd: String(parsed.shiftEnd ?? ""),
+      crewCount: String(parsed.crewCount ?? ""),
+      rounds: String(parsed.rounds ?? ""),
+      shortBreakDuration1: String(parsed.shortBreakDuration1 ?? ""),
+      shortBreakDuration2: String(parsed.shortBreakDuration2 ?? ""),
+      shortBreakDuration3: String(parsed.shortBreakDuration3 ?? ""),
+      patternSequence: String(parsed.patternSequence ?? ""),
+      shortBreakMode: parsed.shortBreakMode === "different" ? "different" : "same",
+    };
+
+    if (!allowedCrewCounts.includes(Number(normalized.crewCount))) {
+      return null;
+    }
+
+    if (!Number.isFinite(Number(normalized.rounds)) || Number(normalized.rounds) < 1) {
+      return null;
+    }
+
+    return normalized;
+  } catch (err) {
+    return null;
+  }
+}
 
 function parseClock(value, fieldLabel) {
   const normalized = normalizeClockValue(value);
@@ -821,6 +868,7 @@ function guardSelectionChange() {
     }
 
     lastAcceptedState = currentState;
+    saveFormState(lastAcceptedState);
     runCalculation();
   } catch (err) {
     runCalculation();
@@ -877,6 +925,16 @@ input.patternSequence.addEventListener("change", () => {
   guardSelectionChange();
 });
 
-updateBreakInputsVisibility();
+const persistedState = loadFormState();
+if (persistedState) {
+  applyFormState(persistedState);
+} else {
+  updateBreakInputsVisibility();
+}
 runCalculation();
 lastAcceptedState = captureFormState();
+saveFormState(lastAcceptedState);
+
+window.addEventListener("beforeunload", () => {
+  saveFormState(captureFormState());
+});
