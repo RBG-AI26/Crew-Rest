@@ -1,0 +1,10 @@
+{
+  "name": "Crew Rest",
+  "short_name": "Crew Rest",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f7f2",
+  "theme_color": "#3f7c4d",
+  "description": "Crew rest calculator with offline support."
+}

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#3f7c4d" />
+    <title>Crew Rest Offline</title>
+    <style>
+      :root {
+        --bg: #f4f7f2;
+        --paper: #ffffff;
+        --ink: #1f2a1f;
+        --line: #d7dfd5;
+        --accent: #3f7c4d;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 1rem;
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at 20% 0%, #e5f0d9 0%, transparent 35%),
+          radial-gradient(circle at 100% 100%, #e9efe6 0%, transparent 45%),
+          var(--bg);
+      }
+
+      main {
+        width: min(540px, 100%);
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 1rem;
+      }
+
+      h1 {
+        margin: 0 0 0.5rem;
+      }
+
+      p {
+        margin: 0.5rem 0;
+        line-height: 1.4;
+      }
+
+      a {
+        display: inline-block;
+        margin-top: 0.5rem;
+        color: white;
+        background: var(--accent);
+        border: 1px solid var(--accent);
+        border-radius: 999px;
+        padding: 0.45rem 0.9rem;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>You are offline</h1>
+      <p>Crew Rest is not reachable right now. If you have opened the app before, it will load from cache when available.</p>
+      <p>Reconnect and try again if this message remains.</p>
+      <a href="./index.html">Try again</a>
+    </main>
+  </body>
+</html>

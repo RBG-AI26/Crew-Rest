@@ -71,6 +71,18 @@ function loadFormState() {
   }
 }
 
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) {
+    return;
+  }
+
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(() => {
+      // Ignore registration errors in unsupported contexts (for example file://).
+    });
+  });
+}
+
 function parseClock(value, fieldLabel) {
   const normalized = normalizeClockValue(value);
   if (!normalized) {
@@ -934,6 +946,7 @@ if (persistedState) {
 runCalculation();
 lastAcceptedState = captureFormState();
 saveFormState(lastAcceptedState);
+registerServiceWorker();
 
 window.addEventListener("beforeunload", () => {
   saveFormState(captureFormState());
