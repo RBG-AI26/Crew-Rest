@@ -1,4 +1,4 @@
-const CACHE_NAME = "crew-rest-cache-v1";
+const CACHE_NAME = "crew-rest-cache-v2";
 const CORE_ASSETS = [
   "./",
   "./index.html",
@@ -6,6 +6,13 @@ const CORE_ASSETS = [
   "./app.js",
   "./manifest.webmanifest",
   "./offline.html",
+  "./icons/favicon-16.png",
+  "./icons/favicon-32.png",
+  "./icons/icon-152.png",
+  "./icons/icon-167.png",
+  "./icons/icon-180.png",
+  "./icons/icon-192.png",
+  "./icons/icon-512.png",
 ];
 
 self.addEventListener("install", (event) => {
