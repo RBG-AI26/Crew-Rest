@@ -22,6 +22,8 @@ const allowedCrewCounts = [2, 3];
 const maxPatternOptions = 200;
 const maxPatternCandidates = 100000;
 const formStateStorageKey = "crew-rest:last-form-state:v1";
+const evenPatternValue = "__EVEN__";
+const evenPatternLabel = "All Crew Even Breaks";
 let lastAcceptedState = null;
 let isRevertingSelection = false;
 
@@ -228,6 +230,10 @@ function parsePatternTokens(rawValue, expectedSlots) {
   }
 
   return tokens;
+}
+
+function isEvenPatternSelected() {
+  return String(input.patternSequence.value).trim() === evenPatternValue;
 }
 
 function applyTimeNormalization(field) {
@@ -462,33 +468,32 @@ function setPatternOptions(options, truncated) {
   const previousValue = input.patternSequence.value;
   input.patternSequence.innerHTML = "";
 
-  if (!options.length) {
-    const option = document.createElement("option");
-    option.value = "";
-    option.textContent = "No equal-rest patterns available";
-    option.disabled = true;
-    option.selected = true;
-    input.patternSequence.append(option);
-    input.patternSequence.title = "No valid equal-rest pattern is available for these inputs.";
-    return;
-  }
+  const allOptions = [
+    { value: evenPatternValue, label: evenPatternLabel },
+    ...options.map((pattern) => ({ value: pattern, label: pattern })),
+  ];
 
-  for (const pattern of options) {
+  for (const pattern of allOptions) {
     const option = document.createElement("option");
-    option.value = pattern;
-    option.textContent = pattern;
+    option.value = pattern.value;
+    option.textContent = pattern.label;
     input.patternSequence.append(option);
   }
 
-  if (options.includes(previousValue)) {
+  const optionValues = allOptions.map((option) => option.value);
+  if (optionValues.includes(previousValue)) {
     input.patternSequence.value = previousValue;
   } else {
-    input.patternSequence.value = options[0];
+    input.patternSequence.value = allOptions[0].value;
   }
 
-  input.patternSequence.title = truncated
-    ? "Showing the first equal-rest patterns. Reduce rounds for the full list."
-    : "Choose a pattern option that keeps total rest equal across crews";
+  if (isEvenPatternSelected()) {
+    input.patternSequence.title = "Applies evenly distributed break durations for all crews.";
+  } else {
+    input.patternSequence.title = truncated
+      ? "Showing the first equal-rest patterns. Reduce rounds for the full list."
+      : "Choose a pattern option that keeps total rest equal across crews";
+  }
 }
 
 function refreshPatternOptions() {
@@ -498,8 +503,17 @@ function refreshPatternOptions() {
     return;
   }
 
-  const config = readPatternGenerationConfig();
-  const { options, truncated } = generateEqualRestPatternOptions(config);
+  let options = [];
+  let truncated = false;
+
+  try {
+    const config = readPatternGenerationConfig();
+    ({ options, truncated } = generateEqualRestPatternOptions(config));
+  } catch (err) {
+    options = [];
+    truncated = false;
+  }
+
   setPatternOptions(options, truncated);
 }
 
@@ -615,8 +629,21 @@ function buildSlotDurations(config, breakWindowLength, order) {
   const baseSlotMinutes = Math.floor(breakWindowLength / slotCount);
   const remainder = breakWindowLength - baseSlotMinutes * slotCount;
   const durations = Array(slotCount).fill(baseSlotMinutes);
-  for (let i = slotCount - remainder; i < slotCount; i += 1) {
-    durations[i] += 1;
+
+  const extrasByCrew = Array(config.crewCount).fill(
+    Math.floor(remainder / config.crewCount)
+  );
+  for (let crew = 0; crew < remainder % config.crewCount; crew += 1) {
+    extrasByCrew[crew] += 1;
+  }
+
+  const assignedExtrasByCrew = Array(config.crewCount).fill(0);
+  for (let i = 0; i < slotCount; i += 1) {
+    const crewIndex = order[i] - 1;
+    if (assignedExtrasByCrew[crewIndex] < extrasByCrew[crewIndex]) {
+      durations[i] += 1;
+      assignedExtrasByCrew[crewIndex] += 1;
+    }
   }
 
   return durations;
@@ -708,9 +735,12 @@ function readConfig() {
   const crewCount = Number(input.crewCount.value);
   const slotCount = crewCount * rounds;
   const multiBreak = rounds > 1;
-  const patternTokens = multiBreak
-    ? parsePatternTokens(input.patternSequence.value, slotCount)
-    : null;
+  const selectedPatternValue = String(input.patternSequence.value).trim();
+  const evenMode = multiBreak && selectedPatternValue === evenPatternValue;
+  const patternTokens =
+    multiBreak && !evenMode
+      ? parsePatternTokens(selectedPatternValue, slotCount)
+      : null;
   const patternUsesShortDurations = Boolean(
     patternTokens && patternTokens.includes("S")
   );
@@ -732,7 +762,7 @@ function readConfig() {
     );
   }
 
-  if (multiBreak && !patternTokens) {
+  if (multiBreak && !evenMode && !patternTokens) {
     throw new Error(
       "No equal-rest pattern is available for the current inputs. Adjust crew settings and try again."
     );
@@ -755,7 +785,7 @@ function runCalculation() {
     applyTimeNormalization(input.shiftEnd);
     if (Number(input.rounds.value) > 1) {
       refreshPatternOptions();
-      if (String(input.patternSequence.value).trim()) {
+      if (String(input.patternSequence.value).trim() && !isEvenPatternSelected()) {
         if (getShortBreakMode() === "same") {
           applyDurationNormalization(input.shortBreakDuration1);
           syncShortBreaksFromCrew1();
