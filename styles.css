@@ -21,31 +21,37 @@
   --panel-shadow: 0 6px 18px rgba(31, 42, 31, 0.04);
   --input-bg: #ffffff;
   --metric-bg: #fafdf7;
+  --hero-shadow: 0 10px 28px rgba(31, 42, 31, 0.06);
+  --table-row-bg: transparent;
+  --table-head-bg: transparent;
 }
 
 :root[data-theme="night"] {
   color-scheme: dark;
-  --bg: #0f1613;
-  --paper: #18211c;
-  --ink: #e2ece4;
-  --muted: #a4b7aa;
-  --line: #33433a;
-  --accent: #78a889;
-  --accent-strong: #8eb79a;
-  --warn: #f2a4a4;
-  --theme-color: #18211c;
+  --bg: #07100d;
+  --paper: #101916;
+  --ink: #edf6ef;
+  --muted: #93a99a;
+  --line: #284035;
+  --accent: #85c09a;
+  --accent-strong: #9ad0ae;
+  --warn: #ffb3b3;
+  --theme-color: #07100d;
   --hero-bg:
-    linear-gradient(135deg, rgba(120, 168, 137, 0.16), rgba(24, 33, 28, 0.94));
-  --hero-border: rgba(120, 168, 137, 0.18);
-  --theme-surface: rgba(20, 29, 24, 0.8);
-  --theme-surface-hover: rgba(24, 34, 28, 0.96);
-  --theme-surface-border: rgba(120, 168, 137, 0.22);
-  --theme-text: #d6e4d9;
-  --bg-radial-1: rgba(120, 168, 137, 0.08);
-  --bg-radial-2: rgba(44, 68, 54, 0.2);
-  --panel-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
-  --input-bg: #111915;
-  --metric-bg: #1d2822;
+    linear-gradient(135deg, rgba(133, 192, 154, 0.18), rgba(10, 18, 15, 0.96));
+  --hero-border: rgba(133, 192, 154, 0.24);
+  --theme-surface: rgba(12, 20, 17, 0.92);
+  --theme-surface-hover: rgba(17, 27, 22, 0.98);
+  --theme-surface-border: rgba(133, 192, 154, 0.26);
+  --theme-text: #e4f1e8;
+  --bg-radial-1: rgba(133, 192, 154, 0.1);
+  --bg-radial-2: rgba(19, 43, 32, 0.46);
+  --panel-shadow: 0 18px 38px rgba(0, 0, 0, 0.42);
+  --input-bg: #0b1411;
+  --metric-bg: #13201a;
+  --hero-shadow: 0 16px 36px rgba(0, 0, 0, 0.4);
+  --table-row-bg: rgba(255, 255, 255, 0.01);
+  --table-head-bg: rgba(255, 255, 255, 0.02);
 }
 
 * {
@@ -82,7 +88,7 @@ body {
   border: 1px solid var(--hero-border);
   border-radius: 16px;
   padding: 0.9rem 1rem;
-  box-shadow: 0 10px 28px rgba(31, 42, 31, 0.06);
+  box-shadow: var(--hero-shadow);
 }
 
 .hero-bar {
@@ -279,6 +285,7 @@ table {
   width: 100%;
   border-collapse: collapse;
   min-width: 420px;
+  background: var(--table-row-bg);
 }
 
 th,
@@ -293,6 +300,17 @@ th {
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  background: var(--table-head-bg);
+}
+
+:root[data-theme="night"] .mini-toggle[aria-pressed="false"] {
+  background: #12211b;
+  color: var(--accent);
+}
+
+:root[data-theme="night"] .secondary {
+  background: #13211b;
+  color: var(--accent);
 }
 
 .error {

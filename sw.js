@@ -1,4 +1,4 @@
-const CACHE_NAME = "crew-rest-cache-v3";
+const CACHE_NAME = "crew-rest-cache-v4";
 const CORE_ASSETS = [
   "./",
   "./index.html",
@@ -14,6 +14,16 @@ const CORE_ASSETS = [
   "./icons/icon-192.png",
   "./icons/icon-512.png",
 ];
+
+function isAppShellAsset(url) {
+  return (
+    url.pathname.endsWith("/") ||
+    url.pathname.endsWith(".html") ||
+    url.pathname.endsWith(".css") ||
+    url.pathname.endsWith(".js") ||
+    url.pathname.endsWith(".webmanifest")
+  );
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -65,6 +75,21 @@ self.addEventListener("fetch", (event) => {
             (await cache.match("./offline.html"))
           );
         })
+    );
+    return;
+  }
+
+  if (isAppShellAsset(requestUrl)) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          const responseClone = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseClone);
+          });
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request))
     );
     return;
   }
