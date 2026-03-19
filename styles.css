@@ -289,6 +289,13 @@ button:hover {
   color: var(--accent-strong);
 }
 
+.secondary:hover,
+.secondary:focus-visible,
+.secondary:active {
+  background: white;
+  color: var(--accent-strong);
+}
+
 .summary-grid {
   display: grid;
   gap: 0.45rem;
@@ -348,6 +355,13 @@ th {
 }
 
 :root[data-theme="night"] .secondary {
+  background: #13211b;
+  color: var(--accent);
+}
+
+:root[data-theme="night"] .secondary:hover,
+:root[data-theme="night"] .secondary:focus-visible,
+:root[data-theme="night"] .secondary:active {
   background: #13211b;
   color: var(--accent);
 }

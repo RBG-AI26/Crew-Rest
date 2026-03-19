@@ -58,6 +58,15 @@ function buildTransferPayload() {
   };
 }
 
+function buildTransferFileParts() {
+  const payload = buildTransferPayload();
+  const stamp = payload.exportedAt.slice(0, 19).replace(/[:T]/g, "-");
+  const fileName = `crew-rest-${stamp}.json`;
+  const fileText = JSON.stringify(payload, null, 2);
+  const blob = new Blob([fileText], { type: "application/json" });
+  return { payload, fileName, fileText, blob };
+}
+
 function sanitizeImportedFormState(rawState) {
   if (!rawState || typeof rawState !== "object") {
     throw new Error("Import file is missing form data.");
@@ -102,23 +111,45 @@ function applyImportedPayload(payload) {
   saveFormState(lastAcceptedState);
 }
 
-function exportCurrentData() {
+async function exportCurrentData() {
   try {
-    const payload = buildTransferPayload();
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {
-      type: "application/json",
-    });
-    const downloadUrl = URL.createObjectURL(blob);
+    const { fileName, fileText, blob } = buildTransferFileParts();
+
+    if (typeof File === "function") {
+      const shareFile = new File([blob], fileName, { type: "application/json" });
+      if (
+        navigator.share &&
+        navigator.canShare &&
+        navigator.canShare({ files: [shareFile] })
+      ) {
+        await navigator.share({
+          title: "Crew Rest Data",
+          text: "Crew Rest transfer file",
+          files: [shareFile],
+        });
+        setTransferStatus("Share sheet opened. Send the JSON file with AirDrop.", "success");
+        return;
+      }
+    }
+
+    const downloadUrl = URL.createObjectURL(
+      new Blob([fileText], { type: "application/json" })
+    );
     const link = document.createElement("a");
-    const stamp = payload.exportedAt.slice(0, 19).replace(/[:T]/g, "-");
     link.href = downloadUrl;
-    link.download = `crew-rest-${stamp}.json`;
+    link.download = fileName;
     document.body.append(link);
     link.click();
     link.remove();
-    URL.revokeObjectURL(downloadUrl);
-    setTransferStatus("Data exported. AirDrop the JSON file to the other device.", "success");
+    setTransferStatus("JSON file downloaded. AirDrop that file to the other device.", "success");
+    setTimeout(() => {
+      URL.revokeObjectURL(downloadUrl);
+    }, 1000);
   } catch (err) {
+    if (err?.name === "AbortError") {
+      setTransferStatus("Export cancelled.", "");
+      return;
+    }
     setTransferStatus("Could not export data.", "error");
   }
 }
