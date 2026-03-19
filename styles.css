@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light;
   --bg: #f4f7f2;
   --paper: #ffffff;
   --ink: #1f2a1f;
@@ -7,6 +8,44 @@
   --accent: #3f7c4d;
   --accent-strong: #2f5d3a;
   --warn: #b02020;
+  --theme-color: #3f7c4d;
+  --hero-bg:
+    linear-gradient(135deg, rgba(63, 124, 77, 0.14), rgba(229, 240, 217, 0.92));
+  --hero-border: rgba(63, 124, 77, 0.14);
+  --theme-surface: rgba(255, 255, 255, 0.78);
+  --theme-surface-hover: rgba(255, 255, 255, 0.92);
+  --theme-surface-border: rgba(63, 124, 77, 0.2);
+  --theme-text: #23402b;
+  --bg-radial-1: #e5f0d9;
+  --bg-radial-2: #e9efe6;
+  --panel-shadow: 0 6px 18px rgba(31, 42, 31, 0.04);
+  --input-bg: #ffffff;
+  --metric-bg: #fafdf7;
+}
+
+:root[data-theme="night"] {
+  color-scheme: dark;
+  --bg: #0f1613;
+  --paper: #18211c;
+  --ink: #e2ece4;
+  --muted: #a4b7aa;
+  --line: #33433a;
+  --accent: #78a889;
+  --accent-strong: #8eb79a;
+  --warn: #f2a4a4;
+  --theme-color: #18211c;
+  --hero-bg:
+    linear-gradient(135deg, rgba(120, 168, 137, 0.16), rgba(24, 33, 28, 0.94));
+  --hero-border: rgba(120, 168, 137, 0.18);
+  --theme-surface: rgba(20, 29, 24, 0.8);
+  --theme-surface-hover: rgba(24, 34, 28, 0.96);
+  --theme-surface-border: rgba(120, 168, 137, 0.22);
+  --theme-text: #d6e4d9;
+  --bg-radial-1: rgba(120, 168, 137, 0.08);
+  --bg-radial-2: rgba(44, 68, 54, 0.2);
+  --panel-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+  --input-bg: #111915;
+  --metric-bg: #1d2822;
 }
 
 * {
@@ -19,8 +58,8 @@ body {
   font-family: "Avenir Next", "Segoe UI", sans-serif;
   color: var(--ink);
   background:
-    radial-gradient(circle at 20% 0%, #e5f0d9 0%, transparent 35%),
-    radial-gradient(circle at 100% 100%, #e9efe6 0%, transparent 45%),
+    radial-gradient(circle at 20% 0%, var(--bg-radial-1) 0%, transparent 35%),
+    radial-gradient(circle at 100% 100%, var(--bg-radial-2) 0%, transparent 45%),
     var(--bg);
 }
 
@@ -36,6 +75,44 @@ body {
   margin: 0;
   font-size: clamp(1.9rem, 2.7vw, 2.4rem);
   line-height: 1.05;
+}
+
+.hero {
+  background: var(--hero-bg);
+  border: 1px solid var(--hero-border);
+  border-radius: 16px;
+  padding: 0.9rem 1rem;
+  box-shadow: 0 10px 28px rgba(31, 42, 31, 0.06);
+}
+
+.hero-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.9rem;
+}
+
+.theme-field {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 112px;
+  color: var(--theme-text);
+  font-size: 0.72rem;
+}
+
+.theme-field select {
+  height: 36px;
+  border-radius: 999px;
+  border-color: var(--theme-surface-border);
+  background-color: var(--theme-surface);
+  color: var(--theme-text);
+  background-position:
+    calc(100% - 16px) calc(50% - 2px),
+    calc(100% - 10px) calc(50% - 2px);
+}
+
+.theme-field select:hover {
+  background-color: var(--theme-surface-hover);
 }
 
 .eyebrow {
@@ -56,7 +133,7 @@ body {
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 0.72rem;
-  box-shadow: 0 6px 18px rgba(31, 42, 31, 0.04);
+  box-shadow: var(--panel-shadow);
 }
 
 .card h2 {
@@ -99,7 +176,7 @@ select {
   font-size: 15px;
   line-height: 1.2;
   color: var(--ink);
-  background: #fff;
+  background: var(--input-bg);
 }
 
 select {
@@ -177,7 +254,7 @@ button:hover {
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 0.45rem;
-  background: #fafdf7;
+  background: var(--metric-bg);
 }
 
 .metric .label {
@@ -243,6 +320,15 @@ th {
 @media (max-width: 700px) {
   .page {
     padding: 0.63rem;
+  }
+
+  .hero-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .theme-field {
+    min-width: 0;
   }
 
   .card {

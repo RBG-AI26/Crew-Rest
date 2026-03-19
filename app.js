@@ -22,6 +22,8 @@ const allowedCrewCounts = [2, 3];
 const maxPatternOptions = 200;
 const maxPatternCandidates = 100000;
 const formStateStorageKey = "crew-rest:last-form-state:v1";
+const themeStorageKey = "crew-rest:theme-mode:v1";
+const defaultThemeMode = "auto";
 const evenPatternValue = "__EVEN__";
 const evenPatternLabel = "All Crew Even Breaks";
 let lastAcceptedState = null;
@@ -70,6 +72,90 @@ function loadFormState() {
     return normalized;
   } catch (err) {
     return null;
+  }
+}
+
+function sanitizeThemeMode(mode) {
+  return ["day", "night", "auto"].includes(mode) ? mode : defaultThemeMode;
+}
+
+function readThemeMode() {
+  try {
+    return sanitizeThemeMode(localStorage.getItem(themeStorageKey));
+  } catch (err) {
+    return defaultThemeMode;
+  }
+}
+
+function writeThemeMode(mode) {
+  try {
+    localStorage.setItem(themeStorageKey, sanitizeThemeMode(mode));
+  } catch (err) {
+    // Ignore storage failures and keep the app usable.
+  }
+}
+
+function resolveAppliedTheme(mode) {
+  const normalized = sanitizeThemeMode(mode);
+  if (normalized === "auto") {
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "night" : "day";
+  }
+  return normalized;
+}
+
+function applyTheme(mode = readThemeMode()) {
+  const normalized = sanitizeThemeMode(mode);
+  const appliedTheme = resolveAppliedTheme(normalized);
+  const rootEl = document.documentElement;
+  if (rootEl?.dataset) {
+    rootEl.dataset.themeMode = normalized;
+    rootEl.dataset.theme = appliedTheme;
+  }
+
+  const themeEl = document.querySelector("#theme-mode");
+  if (themeEl && themeEl.value !== normalized) {
+    themeEl.value = normalized;
+  }
+
+  const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+  if (themeColorMeta && rootEl && typeof getComputedStyle === "function") {
+    const cssValue = getComputedStyle(rootEl).getPropertyValue("--theme-color").trim();
+    if (cssValue) {
+      themeColorMeta.setAttribute("content", cssValue);
+    }
+  }
+}
+
+function bindThemeControls() {
+  const themeEl = document.querySelector("#theme-mode");
+  if (!themeEl) {
+    return;
+  }
+
+  themeEl.value = readThemeMode();
+  themeEl.addEventListener("change", () => {
+    const mode = sanitizeThemeMode(themeEl.value);
+    writeThemeMode(mode);
+    applyTheme(mode);
+  });
+}
+
+function bindThemeAutoUpdates() {
+  const mediaQuery = window.matchMedia?.("(prefers-color-scheme: dark)");
+  if (!mediaQuery) {
+    return;
+  }
+
+  const syncAutoTheme = () => {
+    if (readThemeMode() === "auto") {
+      applyTheme("auto");
+    }
+  };
+
+  if (typeof mediaQuery.addEventListener === "function") {
+    mediaQuery.addEventListener("change", syncAutoTheme);
+  } else if (typeof mediaQuery.addListener === "function") {
+    mediaQuery.addListener(syncAutoTheme);
   }
 }
 
@@ -966,6 +1052,10 @@ input.shortBreakDuration3.addEventListener("blur", () => {
 input.patternSequence.addEventListener("change", () => {
   guardSelectionChange();
 });
+
+applyTheme();
+bindThemeControls();
+bindThemeAutoUpdates();
 
 const persistedState = loadFormState();
 if (persistedState) {
