@@ -2,6 +2,10 @@ const form = document.getElementById("config-form");
 const errorEl = document.getElementById("error");
 const summaryEl = document.getElementById("summary");
 const scheduleBodyEl = document.getElementById("schedule-body");
+const transferStatusEl = document.getElementById("transfer-status");
+const exportDataButton = document.getElementById("export-data");
+const importDataButton = document.getElementById("import-data");
+const importDataFileInput = document.getElementById("import-data-file");
 
 const input = {
   shiftStart: document.getElementById("shift-start"),
@@ -24,10 +28,139 @@ const maxPatternCandidates = 100000;
 const formStateStorageKey = "crew-rest:last-form-state:v1";
 const themeStorageKey = "crew-rest:theme-mode:v1";
 const defaultThemeMode = "auto";
+const transferFileVersion = 1;
 const evenPatternValue = "__EVEN__";
 const evenPatternLabel = "All Crew Even Breaks";
 let lastAcceptedState = null;
 let isRevertingSelection = false;
+
+function setTransferStatus(message, tone = "") {
+  if (!transferStatusEl) {
+    return;
+  }
+
+  transferStatusEl.textContent = message;
+  transferStatusEl.classList.remove("is-error", "is-success");
+  if (tone === "error") {
+    transferStatusEl.classList.add("is-error");
+  } else if (tone === "success") {
+    transferStatusEl.classList.add("is-success");
+  }
+}
+
+function buildTransferPayload() {
+  return {
+    type: "crew-rest-transfer",
+    version: transferFileVersion,
+    exportedAt: new Date().toISOString(),
+    themeMode: readThemeMode(),
+    formState: captureFormState(),
+  };
+}
+
+function sanitizeImportedFormState(rawState) {
+  if (!rawState || typeof rawState !== "object") {
+    throw new Error("Import file is missing form data.");
+  }
+
+  const normalized = {
+    shiftStart: String(rawState.shiftStart ?? ""),
+    shiftEnd: String(rawState.shiftEnd ?? ""),
+    crewCount: String(rawState.crewCount ?? ""),
+    rounds: String(rawState.rounds ?? ""),
+    shortBreakDuration1: String(rawState.shortBreakDuration1 ?? ""),
+    shortBreakDuration2: String(rawState.shortBreakDuration2 ?? ""),
+    shortBreakDuration3: String(rawState.shortBreakDuration3 ?? ""),
+    patternSequence: String(rawState.patternSequence ?? ""),
+    shortBreakMode: rawState.shortBreakMode === "different" ? "different" : "same",
+  };
+
+  if (!allowedCrewCounts.includes(Number(normalized.crewCount))) {
+    throw new Error("Import file has an unsupported crew count.");
+  }
+
+  if (!Number.isFinite(Number(normalized.rounds)) || Number(normalized.rounds) < 1) {
+    throw new Error("Import file has an invalid break count.");
+  }
+
+  return normalized;
+}
+
+function applyImportedPayload(payload) {
+  if (!payload || payload.type !== "crew-rest-transfer") {
+    throw new Error("This file is not a Crew Rest transfer file.");
+  }
+
+  const importedState = sanitizeImportedFormState(payload.formState);
+  const importedThemeMode = sanitizeThemeMode(payload.themeMode);
+
+  applyFormState(importedState);
+  writeThemeMode(importedThemeMode);
+  applyTheme(importedThemeMode);
+  runCalculation();
+  lastAcceptedState = captureFormState();
+  saveFormState(lastAcceptedState);
+}
+
+function exportCurrentData() {
+  try {
+    const payload = buildTransferPayload();
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json",
+    });
+    const downloadUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const stamp = payload.exportedAt.slice(0, 19).replace(/[:T]/g, "-");
+    link.href = downloadUrl;
+    link.download = `crew-rest-${stamp}.json`;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(downloadUrl);
+    setTransferStatus("Data exported. AirDrop the JSON file to the other device.", "success");
+  } catch (err) {
+    setTransferStatus("Could not export data.", "error");
+  }
+}
+
+function importSelectedFile(file) {
+  if (!file) {
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.addEventListener("load", () => {
+    try {
+      const payload = JSON.parse(String(reader.result || ""));
+      applyImportedPayload(payload);
+      setTransferStatus("Data imported successfully.", "success");
+    } catch (err) {
+      setTransferStatus(err.message || "Could not import that file.", "error");
+    } finally {
+      importDataFileInput.value = "";
+    }
+  });
+  reader.addEventListener("error", () => {
+    setTransferStatus("Could not read that file.", "error");
+    importDataFileInput.value = "";
+  });
+  reader.readAsText(file);
+}
+
+function bindTransferControls() {
+  if (exportDataButton) {
+    exportDataButton.addEventListener("click", exportCurrentData);
+  }
+
+  if (importDataButton && importDataFileInput) {
+    importDataButton.addEventListener("click", () => {
+      importDataFileInput.click();
+    });
+    importDataFileInput.addEventListener("change", () => {
+      importSelectedFile(importDataFileInput.files?.[0]);
+    });
+  }
+}
 
 function saveFormState(state) {
   try {
@@ -1056,6 +1189,7 @@ input.patternSequence.addEventListener("change", () => {
 applyTheme();
 bindThemeControls();
 bindThemeAutoUpdates();
+bindTransferControls();
 
 const persistedState = loadFormState();
 if (persistedState) {

@@ -33,7 +33,20 @@
       </header>
 
       <section class="card controls">
-        <h2>Inputs</h2>
+        <div class="section-heading">
+          <h2>Inputs</h2>
+          <div class="transfer-toolbar">
+            <button type="button" id="export-data" class="secondary">Export Data</button>
+            <button type="button" id="import-data" class="secondary">Import Data</button>
+            <input
+              id="import-data-file"
+              type="file"
+              accept=".json,application/json"
+              hidden
+            />
+          </div>
+        </div>
+        <p id="transfer-status" class="transfer-status" aria-live="polite"></p>
         <form id="config-form">
           <label>
             Off
