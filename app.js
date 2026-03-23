@@ -67,28 +67,33 @@ function buildTransferFileParts() {
   return { payload, fileName, fileText, blob };
 }
 
-function buildTransferShareFile(fileName, blob) {
-  if (typeof File !== "function") {
-    return null;
+function encodeTransferPayload(payload) {
+  const json = JSON.stringify(payload);
+  const bytes = new TextEncoder().encode(json);
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
   }
-
-  return new File([blob], fileName, { type: "application/json" });
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
-function canShareTransferFile(shareFile) {
-  if (!shareFile || typeof navigator?.share !== "function") {
-    return false;
+function decodeTransferPayload(encoded) {
+  const base64 = encoded.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = `${base64}${"=".repeat((4 - (base64.length % 4 || 4)) % 4)}`;
+  const binary = atob(padded);
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  const json = new TextDecoder().decode(bytes);
+  return JSON.parse(json);
+}
+
+function buildTransferShareUrl(payload) {
+  if (typeof window === "undefined" || typeof window.location?.href !== "string") {
+    return "";
   }
 
-  if (typeof navigator.canShare !== "function") {
-    return true;
-  }
-
-  try {
-    return navigator.canShare({ files: [shareFile] });
-  } catch (err) {
-    return false;
-  }
+  const url = new URL(window.location.href);
+  url.hash = `transfer=${encodeTransferPayload(payload)}`;
+  return url.toString();
 }
 
 function updateExportButtonState() {
@@ -96,15 +101,11 @@ function updateExportButtonState() {
     return;
   }
 
-  const sampleShareFile = buildTransferShareFile(
-    "crew-rest-transfer.json",
-    new Blob(["{}"], { type: "application/json" })
-  );
-  const shareAvailable = canShareTransferFile(sampleShareFile);
+  const shareAvailable = typeof navigator?.share === "function";
 
   exportDataButton.textContent = shareAvailable ? "Share Data" : "Export Data";
   exportDataButton.title = shareAvailable
-    ? "Open the share sheet to send the transfer file with AirDrop or another app."
+    ? "Open the share sheet to send a Crew Rest link with AirDrop or another app."
     : "Download a transfer file you can send to another device.";
 }
 
@@ -154,17 +155,17 @@ function applyImportedPayload(payload) {
 
 async function exportCurrentData() {
   try {
-    const { fileName, fileText, blob } = buildTransferFileParts();
-    const shareFile = buildTransferShareFile(fileName, blob);
+    const { payload, fileName, fileText, blob } = buildTransferFileParts();
+    const shareUrl = buildTransferShareUrl(payload);
 
-    if (canShareTransferFile(shareFile)) {
+    if (typeof navigator?.share === "function" && shareUrl) {
       try {
         await navigator.share({
           title: "Crew Rest Data",
-          text: "Crew Rest transfer file",
-          files: [shareFile],
+          text: "Open this Crew Rest data on your device.",
+          url: shareUrl,
         });
-        setTransferStatus("Share sheet opened. Send the JSON file with AirDrop.", "success");
+        setTransferStatus("Share sheet opened. AirDrop the Crew Rest link to the other device.", "success");
         return;
       } catch (err) {
         if (err?.name === "AbortError") {
@@ -189,6 +190,40 @@ async function exportCurrentData() {
     }, 1000);
   } catch (err) {
     setTransferStatus("Could not export data.", "error");
+  }
+}
+
+function clearTransferHash() {
+  if (!window.location.hash) {
+    return;
+  }
+
+  const url = new URL(window.location.href);
+  url.hash = "";
+  history.replaceState(null, document.title, url.toString());
+}
+
+function importTransferFromLocation() {
+  const hash = String(window.location.hash || "");
+  if (!hash.startsWith("#")) {
+    return false;
+  }
+
+  const params = new URLSearchParams(hash.slice(1));
+  const encodedPayload = params.get("transfer");
+  if (!encodedPayload) {
+    return false;
+  }
+
+  try {
+    const payload = decodeTransferPayload(encodedPayload);
+    applyImportedPayload(payload);
+    setTransferStatus("Shared data opened successfully.", "success");
+    clearTransferHash();
+    return true;
+  } catch (err) {
+    setTransferStatus("Could not open the shared data link.", "error");
+    return false;
   }
 }
 
@@ -1269,6 +1304,7 @@ if (persistedState) {
   updateBreakInputsVisibility();
 }
 runCalculation();
+importTransferFromLocation();
 lastAcceptedState = captureFormState();
 saveFormState(lastAcceptedState);
 registerServiceWorker();
