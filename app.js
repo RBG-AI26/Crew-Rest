@@ -132,7 +132,6 @@ async function exportCurrentData() {
     document.body.append(link);
     link.click();
     link.remove();
-    setTransferStatus("JSON file downloaded. Import that file on the other device.", "success");
     setTimeout(() => {
       URL.revokeObjectURL(downloadUrl);
     }, 1000);
