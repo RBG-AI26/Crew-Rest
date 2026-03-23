@@ -67,45 +67,13 @@ function buildTransferFileParts() {
   return { payload, fileName, fileText, blob };
 }
 
-function buildTransferShareFile(fileName, blob) {
-  if (typeof File !== "function") {
-    return null;
-  }
-
-  return new File([blob], fileName, { type: "application/json" });
-}
-
-function canShareTransferFile(shareFile) {
-  if (!shareFile || typeof navigator?.share !== "function") {
-    return false;
-  }
-
-  if (typeof navigator.canShare !== "function") {
-    return true;
-  }
-
-  try {
-    return navigator.canShare({ files: [shareFile] });
-  } catch (err) {
-    return false;
-  }
-}
-
 function updateExportButtonState() {
   if (!exportDataButton) {
     return;
   }
 
-  const sampleShareFile = buildTransferShareFile(
-    "crew-rest-transfer.json",
-    new Blob(["{}"], { type: "application/json" })
-  );
-  const shareAvailable = canShareTransferFile(sampleShareFile);
-
-  exportDataButton.textContent = shareAvailable ? "Share Data" : "Export Data";
-  exportDataButton.title = shareAvailable
-    ? "Open the share sheet to send the transfer file with AirDrop or another app."
-    : "Download a transfer file you can send to another device.";
+  exportDataButton.textContent = "Export Data";
+  exportDataButton.title = "Download a transfer file you can import on another device.";
 }
 
 function sanitizeImportedFormState(rawState) {
@@ -154,26 +122,7 @@ function applyImportedPayload(payload) {
 
 async function exportCurrentData() {
   try {
-    const { fileName, fileText, blob } = buildTransferFileParts();
-    const shareFile = buildTransferShareFile(fileName, blob);
-
-    if (canShareTransferFile(shareFile)) {
-      try {
-        await navigator.share({
-          title: "Crew Rest Data",
-          text: "Crew Rest transfer file",
-          files: [shareFile],
-        });
-        setTransferStatus("Share sheet opened. Send the JSON file with AirDrop.", "success");
-        return;
-      } catch (err) {
-        if (err?.name === "AbortError") {
-          setTransferStatus("Export cancelled.", "");
-          return;
-        }
-      }
-    }
-
+    const { fileName, fileText } = buildTransferFileParts();
     const downloadUrl = URL.createObjectURL(
       new Blob([fileText], { type: "application/json" })
     );
@@ -183,7 +132,7 @@ async function exportCurrentData() {
     document.body.append(link);
     link.click();
     link.remove();
-    setTransferStatus("JSON file downloaded. AirDrop that file to the other device.", "success");
+    setTransferStatus("JSON file downloaded. Import that file on the other device.", "success");
     setTimeout(() => {
       URL.revokeObjectURL(downloadUrl);
     }, 1000);
