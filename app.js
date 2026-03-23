@@ -67,6 +67,47 @@ function buildTransferFileParts() {
   return { payload, fileName, fileText, blob };
 }
 
+function buildTransferShareFile(fileName, blob) {
+  if (typeof File !== "function") {
+    return null;
+  }
+
+  return new File([blob], fileName, { type: "application/json" });
+}
+
+function canShareTransferFile(shareFile) {
+  if (!shareFile || typeof navigator?.share !== "function") {
+    return false;
+  }
+
+  if (typeof navigator.canShare !== "function") {
+    return true;
+  }
+
+  try {
+    return navigator.canShare({ files: [shareFile] });
+  } catch (err) {
+    return false;
+  }
+}
+
+function updateExportButtonState() {
+  if (!exportDataButton) {
+    return;
+  }
+
+  const sampleShareFile = buildTransferShareFile(
+    "crew-rest-transfer.json",
+    new Blob(["{}"], { type: "application/json" })
+  );
+  const shareAvailable = canShareTransferFile(sampleShareFile);
+
+  exportDataButton.textContent = shareAvailable ? "Share Data" : "Export Data";
+  exportDataButton.title = shareAvailable
+    ? "Open the share sheet to send the transfer file with AirDrop or another app."
+    : "Download a transfer file you can send to another device.";
+}
+
 function sanitizeImportedFormState(rawState) {
   if (!rawState || typeof rawState !== "object") {
     throw new Error("Import file is missing form data.");
@@ -114,14 +155,10 @@ function applyImportedPayload(payload) {
 async function exportCurrentData() {
   try {
     const { fileName, fileText, blob } = buildTransferFileParts();
+    const shareFile = buildTransferShareFile(fileName, blob);
 
-    if (typeof File === "function") {
-      const shareFile = new File([blob], fileName, { type: "application/json" });
-      if (
-        navigator.share &&
-        navigator.canShare &&
-        navigator.canShare({ files: [shareFile] })
-      ) {
+    if (canShareTransferFile(shareFile)) {
+      try {
         await navigator.share({
           title: "Crew Rest Data",
           text: "Crew Rest transfer file",
@@ -129,6 +166,11 @@ async function exportCurrentData() {
         });
         setTransferStatus("Share sheet opened. Send the JSON file with AirDrop.", "success");
         return;
+      } catch (err) {
+        if (err?.name === "AbortError") {
+          setTransferStatus("Export cancelled.", "");
+          return;
+        }
       }
     }
 
@@ -146,10 +188,6 @@ async function exportCurrentData() {
       URL.revokeObjectURL(downloadUrl);
     }, 1000);
   } catch (err) {
-    if (err?.name === "AbortError") {
-      setTransferStatus("Export cancelled.", "");
-      return;
-    }
     setTransferStatus("Could not export data.", "error");
   }
 }
@@ -179,6 +217,8 @@ function importSelectedFile(file) {
 }
 
 function bindTransferControls() {
+  updateExportButtonState();
+
   if (exportDataButton) {
     exportDataButton.addEventListener("click", exportCurrentData);
   }
