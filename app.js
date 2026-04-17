@@ -767,8 +767,9 @@ function updateBreakInputsVisibility() {
   input.patternSequence.required = multiBreak;
   input.shortBreakSyncToggle.disabled = !multiBreak;
 
-  // Crew 3 field visibility within the break fields row
+  // Crew 3 field only visible when 3 crew selected
   input.shortBreakDuration3Wrap.hidden = crewCount < 3;
+  input.shortBreakDuration3.disabled = getShortBreakMode() === "same" || crewCount < 3;
 
   input.shortBreakDuration1.required = false;
   input.shortBreakDuration2.required = false;
