@@ -519,6 +519,7 @@ function setShortBreakMode(mode, options = {}) {
   input.shortBreakSyncToggle.checked = sameMode;
 
   input.shortBreakDuration2.disabled = sameMode;
+  input.shortBreakDuration3Wrap.hidden = crewCount < 3;
   input.shortBreakDuration3.disabled = sameMode || crewCount < 3;
 
   if (sameMode && copyFromCrew1) {
@@ -767,15 +768,15 @@ function updateBreakInputsVisibility() {
   input.patternSequence.required = multiBreak;
   input.shortBreakSyncToggle.disabled = !multiBreak;
 
-  // Crew 3 field only visible when 3 crew selected
-  input.shortBreakDuration3Wrap.hidden = crewCount < 3;
-  input.shortBreakDuration3.disabled = getShortBreakMode() === "same" || crewCount < 3;
-
   input.shortBreakDuration1.required = false;
   input.shortBreakDuration2.required = false;
   input.shortBreakDuration3.required = false;
 
   setShortBreakMode(getShortBreakMode(), { copyFromCrew1: multiBreak });
+
+  // Enforce crew 3 visibility last so it always wins
+  input.shortBreakDuration3Wrap.hidden = crewCount < 3;
+  input.shortBreakDuration3.disabled = getShortBreakMode() === "same" || crewCount < 3;
 
   if (multiBreak) {
     try {
