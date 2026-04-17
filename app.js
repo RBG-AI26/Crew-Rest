@@ -5,6 +5,7 @@ const transferStatusEl = document.getElementById("transfer-status");
 const exportDataButton = document.getElementById("export-data");
 const importDataButton = document.getElementById("import-data");
 const importDataFileInput = document.getElementById("import-data-file");
+const shortBreaksSectionEl = document.getElementById("short-breaks-section");
 
 const input = {
   shiftStart: document.getElementById("shift-start"),
@@ -70,8 +71,6 @@ function updateExportButtonState() {
   if (!exportDataButton) {
     return;
   }
-
-  exportDataButton.textContent = "Export Data";
   exportDataButton.title = "Download a transfer file you can import on another device.";
 }
 
@@ -497,8 +496,9 @@ function shortBreakFieldForCrew(crew) {
   return input.shortBreakDuration3;
 }
 
+// Checkbox-based sync: checked = "same", unchecked = "different"
 function getShortBreakMode() {
-  return input.shortBreakSyncToggle.dataset.mode || "same";
+  return input.shortBreakSyncToggle.checked ? "same" : "different";
 }
 
 function syncShortBreaksFromCrew1() {
@@ -515,9 +515,8 @@ function setShortBreakMode(mode, options = {}) {
   const sameMode = normalizedMode === "same";
   const crewCount = Number(input.crewCount.value);
 
-  input.shortBreakSyncToggle.dataset.mode = normalizedMode;
-  input.shortBreakSyncToggle.textContent = sameMode ? "Same" : "Different";
-  input.shortBreakSyncToggle.setAttribute("aria-pressed", sameMode ? "true" : "false");
+  // Update checkbox state
+  input.shortBreakSyncToggle.checked = sameMode;
 
   input.shortBreakDuration2.disabled = sameMode;
   input.shortBreakDuration3.disabled = sameMode || crewCount < 3;
@@ -758,13 +757,19 @@ function updateBreakInputsVisibility() {
   const rounds = Number(input.rounds.value);
   const crewCount = Number(input.crewCount.value);
   const multiBreak = rounds > 1;
+
+  // Show/hide the entire short breaks section
+  if (shortBreaksSectionEl) {
+    shortBreaksSectionEl.hidden = !multiBreak;
+  }
+
   input.patternWrap.hidden = !multiBreak;
   input.patternSequence.required = multiBreak;
   input.shortBreakSyncToggle.disabled = !multiBreak;
 
-  input.shortBreakDuration1Wrap.hidden = !multiBreak;
-  input.shortBreakDuration2Wrap.hidden = !multiBreak;
-  input.shortBreakDuration3Wrap.hidden = !multiBreak || crewCount < 3;
+  // Crew 3 field visibility within the break fields row
+  input.shortBreakDuration3Wrap.hidden = crewCount < 3;
+
   input.shortBreakDuration1.required = false;
   input.shortBreakDuration2.required = false;
   input.shortBreakDuration3.required = false;
@@ -935,7 +940,7 @@ function calculateSchedule(config) {
 function renderSummary(data, config) {
   const metrics = [
     { label: "Crew Count", value: String(config.crewCount) },
-    { label: "Number of Breaks", value: String(config.rounds) },
+    { label: "Breaks", value: String(config.rounds) },
     { label: "Break Window", value: formatDuration(data.breakWindowLength) },
     { label: "Each Crew Off", value: formatDuration(Math.round(data.eachCrewTarget)) },
   ];
@@ -1162,9 +1167,8 @@ input.rounds.addEventListener("change", () => {
   updateBreakInputsVisibility();
   guardSelectionChange();
 });
-input.shortBreakSyncToggle.addEventListener("click", () => {
-  const nextMode = getShortBreakMode() === "same" ? "different" : "same";
-  setShortBreakMode(nextMode);
+input.shortBreakSyncToggle.addEventListener("change", () => {
+  setShortBreakMode(getShortBreakMode());
   guardSelectionChange();
 });
 input.shiftStart.addEventListener("blur", () => {

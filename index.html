@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#3f7c4d" />
+    <meta name="theme-color" content="#1a2e1c" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Crew Rest" />
@@ -18,151 +18,199 @@
   </head>
   <body>
     <main class="page">
+
       <header class="hero">
-        <div class="hero-bar">
+        <div class="hero-brand">
+          <svg class="hero-icon" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+            <circle cx="14" cy="14" r="12.5" stroke="currentColor" stroke-width="1.4" stroke-opacity="0.5"/>
+            <path d="M14 5v9.2l5.5 3.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="14" cy="14" r="1.8" fill="currentColor"/>
+          </svg>
           <h1>Crew Rest</h1>
-          <label class="theme-field">
-            Theme
-            <select id="theme-mode" aria-label="Theme mode">
-              <option value="day">Day</option>
-              <option value="night">Night</option>
-              <option value="auto">Auto</option>
-            </select>
-          </label>
         </div>
+        <label class="theme-field">
+          <span class="theme-label">Theme</span>
+          <select id="theme-mode" aria-label="Theme mode">
+            <option value="day">Day</option>
+            <option value="night">Night</option>
+            <option value="auto">Auto</option>
+          </select>
+        </label>
       </header>
 
-      <section class="card controls">
-        <div class="section-heading">
-          <h2>Inputs</h2>
-          <div class="transfer-toolbar">
-            <button type="button" id="export-data" class="secondary">Export Data</button>
-            <button type="button" id="import-data" class="secondary">Import Data</button>
-            <input
-              id="import-data-file"
-              type="file"
-              accept=".json,application/json"
-              hidden
-            />
-          </div>
-        </div>
-        <p id="transfer-status" class="transfer-status" aria-live="polite"></p>
-        <div id="config-form">
-          <label>
-            Off
-            <input
-              id="shift-start"
-              type="text"
-              value="00:00"
-              inputmode="numeric"
-              placeholder="HHMM or HH:MM"
-              maxlength="5"
-              title="Use 24-hour time (for example 1900 or 19:00)"
-              required
-            />
-          </label>
-          <label>
-            All on
-            <input
-              id="shift-end"
-              type="text"
-              value="17:00"
-              inputmode="numeric"
-              placeholder="HHMM or HH:MM"
-              maxlength="5"
-              title="Use 24-hour time (for example 0400 or 04:00)"
-              required
-            />
-          </label>
-          <label>
-            Crew count
-            <select id="crew-count" required>
-              <option value="2" selected>2</option>
-              <option value="3">3</option>
-            </select>
-          </label>
-          <label>
-            Number of Breaks
-            <input id="rounds" type="number" value="2" min="1" max="12" required />
-          </label>
-          <label id="short-break-duration-1-wrap" hidden>
-            <span class="short-break-label-row">
-              <span>Crew 1 short break</span>
-              <button
-                id="short-break-sync-toggle"
-                type="button"
-                class="mini-toggle"
-                aria-pressed="true"
-              >
-                Same
+      <div class="layout">
+
+        <section class="card controls">
+          <div class="section-heading">
+            <h2>Inputs</h2>
+            <div class="transfer-toolbar">
+              <button type="button" id="export-data" class="secondary">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                  <path d="M6 1v6.5M3.5 5l2.5 2.5L8.5 5M1 9.5V11h10V9.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Export
               </button>
-            </span>
-            <input
-              id="short-break-duration-1"
-              type="text"
-              value="2:30"
-              inputmode="numeric"
-              placeholder="HMM or H:MM"
-              maxlength="5"
-              title="Use duration format HMM or H:MM (for example 230 or 2:30)"
-            />
-          </label>
-          <label id="short-break-duration-2-wrap" hidden>
-            Crew 2 short break
-            <input
-              id="short-break-duration-2"
-              type="text"
-              value="2:30"
-              inputmode="numeric"
-              placeholder="HMM or H:MM"
-              maxlength="5"
-              title="Use duration format HMM or H:MM (for example 230 or 2:30)"
-            />
-          </label>
-          <label id="short-break-duration-3-wrap" hidden>
-            Crew 3 short break
-            <input
-              id="short-break-duration-3"
-              type="text"
-              value="2:30"
-              inputmode="numeric"
-              placeholder="HMM or H:MM"
-              maxlength="5"
-              title="Use duration format HMM or H:MM (for example 230 or 2:30)"
-            />
-          </label>
-          <label id="pattern-wrap" hidden>
-            Rest Order (S/L)
-            <select
-              id="pattern-sequence"
-              title="Choose a pattern option that keeps total rest equal across crews"
-            ></select>
-          </label>
-        </div>
-        <p id="error" class="error" role="alert"></p>
-      </section>
+              <button type="button" id="import-data" class="secondary">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                  <path d="M6 8V1.5M3.5 4l2.5-2.5L8.5 4M1 9.5V11h10V9.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Import
+              </button>
+              <input id="import-data-file" type="file" accept=".json,application/json" hidden />
+            </div>
+          </div>
 
-      <section class="card">
-        <h2>Summary</h2>
-        <div id="summary" class="summary-grid"></div>
-      </section>
+          <p id="transfer-status" class="transfer-status" aria-live="polite"></p>
 
-      <section class="card">
-        <h2>Schedule</h2>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Crew</th>
-                <th>Off</th>
-                <th>On</th>
-                <th>Duration</th>
-              </tr>
-            </thead>
-            <tbody id="schedule-body"></tbody>
-          </table>
+          <div id="config-form">
+
+            <div class="field-group">
+              <span class="field-group-label">Shift window</span>
+              <div class="field-row">
+                <label class="field">
+                  <span class="field-label">Off duty</span>
+                  <input
+                    id="shift-start"
+                    type="text"
+                    value="00:00"
+                    inputmode="numeric"
+                    placeholder="HH:MM"
+                    maxlength="5"
+                    title="Use 24-hour time (for example 1900 or 19:00)"
+                    required
+                  />
+                </label>
+                <span class="field-arrow" aria-hidden="true">→</span>
+                <label class="field">
+                  <span class="field-label">All on</span>
+                  <input
+                    id="shift-end"
+                    type="text"
+                    value="17:00"
+                    inputmode="numeric"
+                    placeholder="HH:MM"
+                    maxlength="5"
+                    title="Use 24-hour time (for example 0400 or 04:00)"
+                    required
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div class="field-group">
+              <span class="field-group-label">Crew settings</span>
+              <div class="field-row">
+                <label class="field">
+                  <span class="field-label">Crew count</span>
+                  <select id="crew-count" required>
+                    <option value="2" selected>2</option>
+                    <option value="3">3</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span class="field-label">Breaks</span>
+                  <input id="rounds" type="number" value="2" min="1" max="12" required />
+                </label>
+              </div>
+            </div>
+
+            <div id="short-breaks-section" class="field-group" hidden>
+              <span class="field-group-label">Short break durations</span>
+              <label class="checkbox-label" id="short-break-sync-wrap">
+                <input
+                  id="short-break-sync-toggle"
+                  type="checkbox"
+                  checked
+                  aria-label="Same short break duration for all crews"
+                />
+                <span class="checkbox-custom" aria-hidden="true">
+                  <svg class="check-icon" viewBox="0 0 10 8" fill="none">
+                    <path d="M1 4l3 3 5-6" stroke="white" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </span>
+                <span class="checkbox-text">Same duration for all crews</span>
+              </label>
+              <div class="field-row break-fields-row">
+                <label class="field" id="short-break-duration-1-wrap">
+                  <span class="field-label">Crew 1</span>
+                  <input
+                    id="short-break-duration-1"
+                    type="text"
+                    value="2:30"
+                    inputmode="numeric"
+                    placeholder="H:MM"
+                    maxlength="5"
+                    title="Duration H:MM (for example 2:30)"
+                  />
+                </label>
+                <label class="field" id="short-break-duration-2-wrap">
+                  <span class="field-label">Crew 2</span>
+                  <input
+                    id="short-break-duration-2"
+                    type="text"
+                    value="2:30"
+                    inputmode="numeric"
+                    placeholder="H:MM"
+                    maxlength="5"
+                    title="Duration H:MM (for example 2:30)"
+                  />
+                </label>
+                <label class="field" id="short-break-duration-3-wrap" hidden>
+                  <span class="field-label">Crew 3</span>
+                  <input
+                    id="short-break-duration-3"
+                    type="text"
+                    value="2:30"
+                    inputmode="numeric"
+                    placeholder="H:MM"
+                    maxlength="5"
+                    title="Duration H:MM (for example 2:30)"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div id="pattern-wrap" class="field-group" hidden>
+              <span class="field-group-label">Rest pattern</span>
+              <label class="field">
+                <span class="field-label">Rest order (S/L)</span>
+                <select
+                  id="pattern-sequence"
+                  title="Choose a pattern option that keeps total rest equal across crews"
+                ></select>
+              </label>
+            </div>
+
+          </div>
+
+          <p id="error" class="error" role="alert"></p>
+        </section>
+
+        <div class="results-column">
+          <section class="card summary-card">
+            <h2>Summary</h2>
+            <div id="summary" class="summary-grid"></div>
+          </section>
+
+          <section class="card">
+            <h2>Schedule</h2>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Crew</th>
+                    <th>Off</th>
+                    <th>On</th>
+                    <th>Duration</th>
+                  </tr>
+                </thead>
+                <tbody id="schedule-body"></tbody>
+              </table>
+            </div>
+          </section>
         </div>
-      </section>
+
+      </div>
     </main>
 
     <script src="./app.js"></script>
