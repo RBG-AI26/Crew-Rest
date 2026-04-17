@@ -1,4 +1,3 @@
-const form = document.getElementById("config-form");
 const errorEl = document.getElementById("error");
 const summaryEl = document.getElementById("summary");
 const scheduleBodyEl = document.getElementById("schedule-body");
@@ -1154,11 +1153,6 @@ function guardSelectionChange() {
     runCalculation();
   }
 }
-
-form.addEventListener("submit", (event) => {
-  event.preventDefault();
-  guardSelectionChange();
-});
 
 input.crewCount.addEventListener("change", () => {
   updateBreakInputsVisibility();
