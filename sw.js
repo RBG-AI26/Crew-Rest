@@ -1,4 +1,4 @@
-const CACHE_NAME = "crew-rest-cache-v6";
+const CACHE_NAME = "crew-rest-cache-v7";
 const CORE_ASSETS = [
   "./",
   "./index.html",

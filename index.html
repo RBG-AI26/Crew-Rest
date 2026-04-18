@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-AU">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -41,10 +41,6 @@
       <div class="layout">
 
         <section class="card controls">
-          <div class="section-heading">
-            <h2>Inputs</h2>
-          </div>
-
           <div id="config-form">
 
             <div class="field-group">
@@ -54,24 +50,34 @@
                   <span class="field-label">Off duty</span>
                   <input
                     id="shift-start"
-                    type="time"
+                    type="hidden"
                     value="00:00"
-                    step="60"
-                    title="Choose off-duty time"
                     required
                   />
+                  <button
+                    class="time-trigger"
+                    type="button"
+                    data-time-target="shift-start"
+                    data-time-kind="clock"
+                    aria-label="Choose off-duty time"
+                  >00:00</button>
                 </label>
                 <span class="field-arrow" aria-hidden="true">→</span>
                 <label class="field">
                   <span class="field-label">All on</span>
                   <input
                     id="shift-end"
-                    type="time"
+                    type="hidden"
                     value="17:00"
-                    step="60"
-                    title="Choose all-on time"
                     required
                   />
+                  <button
+                    class="time-trigger"
+                    type="button"
+                    data-time-target="shift-end"
+                    data-time-kind="clock"
+                    aria-label="Choose all-on time"
+                  >17:00</button>
                 </label>
               </div>
             </div>
@@ -93,17 +99,17 @@
               </div>
             </div>
 
+            <div class="field-group summary-inline">
+              <span class="field-group-label">Summary</span>
+              <div id="summary" class="summary-grid"></div>
+            </div>
+
           </div>
 
           <p id="error" class="error" role="alert"></p>
         </section>
 
         <div class="results-column">
-          <section class="card summary-card">
-            <h2>Summary</h2>
-            <div id="summary" class="summary-grid"></div>
-          </section>
-
           <section class="card">
             <div class="section-heading">
               <h2>Schedule</h2>
@@ -128,6 +134,28 @@
 
       </div>
     </main>
+
+    <div id="time-picker-dialog" class="time-picker-dialog" hidden>
+      <div class="time-picker-backdrop" data-time-picker-cancel></div>
+      <section class="time-picker-sheet" role="dialog" aria-modal="true" aria-labelledby="time-picker-title">
+        <h2 id="time-picker-title">Select time</h2>
+        <div class="time-picker-wheels">
+          <label>
+            <span>Hours</span>
+            <select id="time-picker-hours"></select>
+          </label>
+          <span class="time-picker-separator" aria-hidden="true">:</span>
+          <label>
+            <span>Minutes</span>
+            <select id="time-picker-minutes"></select>
+          </label>
+        </div>
+        <div class="time-picker-actions">
+          <button type="button" class="secondary" data-time-picker-cancel>Cancel</button>
+          <button type="button" id="time-picker-set">Set</button>
+        </div>
+      </section>
+    </div>
 
     <script src="./app.js"></script>
   </body>

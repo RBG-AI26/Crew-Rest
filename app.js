@@ -3,6 +3,11 @@ const summaryEl = document.getElementById("summary");
 const scheduleBodyEl = document.getElementById("schedule-body");
 const scheduleWarningEl = document.getElementById("schedule-warning");
 const resetDurationsButton = document.getElementById("reset-durations");
+const timePickerDialog = document.getElementById("time-picker-dialog");
+const timePickerTitle = document.getElementById("time-picker-title");
+const timePickerHours = document.getElementById("time-picker-hours");
+const timePickerMinutes = document.getElementById("time-picker-minutes");
+const timePickerSetButton = document.getElementById("time-picker-set");
 
 const input = {
   shiftStart: document.getElementById("shift-start"),
@@ -18,6 +23,7 @@ const themeStorageKey = "crew-rest:theme-mode:v1";
 const defaultThemeMode = "auto";
 
 let durationOverrides = {};
+let activeTimePicker = null;
 
 function saveFormState(state) {
   try {
@@ -225,14 +231,6 @@ function parseClock(value, fieldLabel) {
   return hours * 60 + minutes;
 }
 
-function parseDurationPickerValue(value) {
-  const normalized = normalizeClockValue(value);
-  if (!normalized) {
-    return null;
-  }
-  const [hours, minutes] = normalized.split(":").map(Number);
-  return hours * 60 + minutes;
-}
 
 function formatClock(totalMinutes) {
   const inDay = ((totalMinutes % 1440) + 1440) % 1440;
@@ -255,6 +253,73 @@ function formatDurationForPicker(totalMinutes) {
   const mins = clamped % 60;
   return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
 }
+
+function formatPositiveDuration(totalMinutes) {
+  if (totalMinutes >= 0 && totalMinutes < 24 * 60) {
+    return formatDurationForPicker(totalMinutes);
+  }
+  return formatDuration(totalMinutes);
+}
+
+function populateTimePickerOptions() {
+  if (!timePickerHours || !timePickerMinutes) {
+    return;
+  }
+
+  if (!timePickerHours.options.length) {
+    for (let hour = 0; hour < 24; hour += 1) {
+      const option = document.createElement("option");
+      option.value = String(hour);
+      option.textContent = String(hour).padStart(2, "0");
+      timePickerHours.append(option);
+    }
+  }
+
+  if (!timePickerMinutes.options.length) {
+    for (let minute = 0; minute < 60; minute += 1) {
+      const option = document.createElement("option");
+      option.value = String(minute);
+      option.textContent = String(minute).padStart(2, "0");
+      timePickerMinutes.append(option);
+    }
+  }
+}
+
+function openTimePicker({ title, initialMinutes, onSet }) {
+  if (!timePickerDialog || !timePickerHours || !timePickerMinutes) {
+    return;
+  }
+
+  populateTimePickerOptions();
+  const minutes = Math.max(0, Math.min(23 * 60 + 59, Math.round(initialMinutes || 0)));
+  timePickerHours.value = String(Math.floor(minutes / 60));
+  timePickerMinutes.value = String(minutes % 60);
+  timePickerTitle.textContent = title;
+  activeTimePicker = { onSet };
+  timePickerDialog.hidden = false;
+  timePickerHours.focus();
+}
+
+function closeTimePicker() {
+  if (timePickerDialog) {
+    timePickerDialog.hidden = true;
+  }
+  activeTimePicker = null;
+}
+
+function selectedPickerMinutes() {
+  return Number(timePickerHours.value) * 60 + Number(timePickerMinutes.value);
+}
+
+function syncStaticTimeTriggers() {
+  document.querySelectorAll(".time-trigger[data-time-target]").forEach((button) => {
+    const field = document.getElementById(button.dataset.timeTarget);
+    if (field) {
+      button.textContent = normalizeClockValue(field.value) || field.value || "00:00";
+    }
+  });
+}
+
 
 function calculateBreakWindowLength(shiftStart, shiftEnd) {
   let normalizedEnd = shiftEnd;
@@ -323,7 +388,7 @@ function buildSlotDurations(config, breakWindowLength, order) {
   const targetMinutes = Math.round(target);
 
   if (!Number.isInteger(target)) {
-    warnings.push(`Break window ${formatDuration(breakWindowLength)} cannot be split into exact whole-minute totals across ${config.crewCount} crews.`);
+    warnings.push(`Break window ${formatPositiveDuration(breakWindowLength)} cannot be split into exact whole-minute totals across ${config.crewCount} crews.`);
   }
 
   const indexesByCrew = slotIndexesByCrew(order, config.crewCount);
@@ -342,7 +407,7 @@ function buildSlotDurations(config, breakWindowLength, order) {
     }
 
     if (remaining < 0) {
-      warnings.push(`Crew ${crewIndex + 1} manually set breaks exceed ${formatDuration(targetMinutes)} by ${formatDuration(Math.abs(remaining))}.`);
+      warnings.push(`Crew ${crewIndex + 1} manually set breaks exceed ${formatPositiveDuration(targetMinutes)} by ${formatPositiveDuration(Math.abs(remaining))}.`);
       for (const index of autoIndexes) {
         durations[index] = 0;
       }
@@ -351,7 +416,7 @@ function buildSlotDurations(config, breakWindowLength, order) {
 
     if (autoIndexes.length === 0) {
       if (remaining !== 0) {
-        warnings.push(`Crew ${crewIndex + 1} total is ${formatDuration(manualTotal)}, not ${formatDuration(targetMinutes)}.`);
+        warnings.push(`Crew ${crewIndex + 1} total is ${formatPositiveDuration(manualTotal)}, not ${formatPositiveDuration(targetMinutes)}.`);
       }
       continue;
     }
@@ -405,13 +470,13 @@ function calculateSchedule(config) {
   const totals = calculateCrewRestTotals(slots, config.crewCount);
   for (let crewIndex = 0; crewIndex < totals.length; crewIndex += 1) {
     if (totals[crewIndex] !== targetMinutes) {
-      warnings.push(`Crew ${crewIndex + 1} total is ${formatDuration(totals[crewIndex])}; target is ${formatDuration(targetMinutes)}.`);
+      warnings.push(`Crew ${crewIndex + 1} total is ${formatPositiveDuration(totals[crewIndex])}; target is ${formatPositiveDuration(targetMinutes)}.`);
     }
   }
 
   const timelineTotal = durations.reduce((total, duration) => total + duration, 0);
   if (timelineTotal !== breakWindowLength) {
-    warnings.push(`Scheduled break durations total ${formatDuration(timelineTotal)}, but the break window is ${formatDuration(breakWindowLength)}.`);
+    warnings.push(`Scheduled break durations total ${formatPositiveDuration(timelineTotal)}, but the break window is ${formatPositiveDuration(breakWindowLength)}.`);
   }
 
   return {
@@ -435,8 +500,8 @@ function calculateCrewRestTotals(slots, crewCount) {
 
 function renderSummary(data) {
   const metrics = [
-    { label: "Break Window", value: formatDuration(data.breakWindowLength) },
-    { label: "Each Crew Off", value: formatDuration(data.eachCrewTarget) },
+    { label: "Break Window", value: formatPositiveDuration(data.breakWindowLength) },
+    { label: "Each Crew Off", value: formatPositiveDuration(data.eachCrewTarget) },
   ];
 
   summaryEl.innerHTML = metrics
@@ -476,16 +541,13 @@ function renderSchedule(data) {
         <td>${formatClock(slot.on)}</td>
         <td>
           <div class="duration-editor">
-            <input
-              class="schedule-duration-input"
-              type="time"
-              step="60"
-              min="00:00"
-              max="23:59"
-              value="${formatDurationForPicker(slot.duration)}"
+            <button
+              class="schedule-duration-button"
+              type="button"
               data-slot-index="${slot.index}"
-              aria-label="Crew ${slot.crew} break duration"
-            />
+              data-duration-minutes="${slot.duration}"
+              aria-label="Set crew ${slot.crew} break duration"
+            >${formatDurationForPicker(slot.duration)}</button>
             <span class="duration-source">${slot.isManual ? "set" : "auto"}</span>
           </div>
         </td>
@@ -528,6 +590,7 @@ function runCalculation() {
     errorEl.textContent = "";
     input.shiftStart.value = normalizeClockValue(input.shiftStart.value) || input.shiftStart.value;
     input.shiftEnd.value = normalizeClockValue(input.shiftEnd.value) || input.shiftEnd.value;
+    syncStaticTimeTriggers();
 
     const config = readConfig();
     durationOverrides = config.durationOverrides;
@@ -562,20 +625,59 @@ input.shiftEnd.addEventListener("change", handleCoreInputChange);
 input.shiftStart.addEventListener("blur", handleCoreInputChange);
 input.shiftEnd.addEventListener("blur", handleCoreInputChange);
 
-scheduleBodyEl.addEventListener("change", (event) => {
-  const durationInput = event.target.closest?.(".schedule-duration-input");
-  if (!durationInput) {
+scheduleBodyEl.addEventListener("click", (event) => {
+  const durationButton = event.target.closest?.(".schedule-duration-button");
+  if (!durationButton) {
     return;
   }
 
-  const slotIndex = String(durationInput.dataset.slotIndex || "");
-  const minutes = parseDurationPickerValue(durationInput.value);
-  if (minutes == null) {
-    delete durationOverrides[slotIndex];
-  } else {
-    durationOverrides[slotIndex] = minutes;
+  const slotIndex = String(durationButton.dataset.slotIndex || "");
+  openTimePicker({
+    title: "Set duration",
+    initialMinutes: Number(durationButton.dataset.durationMinutes || 0),
+    onSet: (minutes) => {
+      durationOverrides[slotIndex] = minutes;
+      runCalculation();
+    },
+  });
+});
+
+document.querySelectorAll(".time-trigger[data-time-target]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const field = document.getElementById(button.dataset.timeTarget);
+    if (!field) {
+      return;
+    }
+
+    openTimePicker({
+      title: button.dataset.timeTarget === "shift-start" ? "Set off-duty time" : "Set all-on time",
+      initialMinutes: parseClock(field.value, "Time"),
+      onSet: (minutes) => {
+        field.value = formatDurationForPicker(minutes);
+        syncStaticTimeTriggers();
+        handleCoreInputChange();
+      },
+    });
+  });
+});
+
+timePickerSetButton?.addEventListener("click", () => {
+  const picker = activeTimePicker;
+  if (!picker) {
+    return;
   }
-  runCalculation();
+  picker.onSet(selectedPickerMinutes());
+  closeTimePicker();
+});
+
+document.querySelectorAll("[data-time-picker-cancel]").forEach((button) => {
+  button.addEventListener("click", closeTimePicker);
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && activeTimePicker) {
+    closeTimePicker();
+  }
 });
 
 resetDurationsButton?.addEventListener("click", () => {
@@ -591,6 +693,7 @@ const persistedState = loadFormState();
 if (persistedState) {
   applyFormState(persistedState);
 }
+syncStaticTimeTriggers();
 runCalculation();
 registerServiceWorker();
 
