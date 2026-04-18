@@ -140,15 +140,19 @@
       <section class="time-picker-sheet" role="dialog" aria-modal="true" aria-labelledby="time-picker-title">
         <h2 id="time-picker-title">Select time</h2>
         <div class="time-picker-wheels">
-          <label>
+          <div class="time-picker-wheel" aria-label="Hours">
             <span>Hours</span>
-            <select id="time-picker-hours"></select>
-          </label>
+            <button type="button" class="wheel-step" data-wheel="hour" data-delta="-1" aria-label="Decrease hours">▲</button>
+            <div id="time-picker-hours" class="wheel-values"></div>
+            <button type="button" class="wheel-step" data-wheel="hour" data-delta="1" aria-label="Increase hours">▼</button>
+          </div>
           <span class="time-picker-separator" aria-hidden="true">:</span>
-          <label>
+          <div class="time-picker-wheel" aria-label="Minutes">
             <span>Minutes</span>
-            <select id="time-picker-minutes"></select>
-          </label>
+            <button type="button" class="wheel-step" data-wheel="minute" data-delta="-1" aria-label="Decrease minutes">▲</button>
+            <div id="time-picker-minutes" class="wheel-values"></div>
+            <button type="button" class="wheel-step" data-wheel="minute" data-delta="1" aria-label="Increase minutes">▼</button>
+          </div>
         </div>
         <div class="time-picker-actions">
           <button type="button" class="secondary" data-time-picker-cancel>Cancel</button>

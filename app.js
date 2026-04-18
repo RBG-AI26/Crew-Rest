@@ -261,43 +261,105 @@ function formatPositiveDuration(totalMinutes) {
   return formatDuration(totalMinutes);
 }
 
-function populateTimePickerOptions() {
-  if (!timePickerHours || !timePickerMinutes) {
+function wrapPickerValue(value, max) {
+  return ((value % max) + max) % max;
+}
+
+function renderWheelValues(container, selectedValue, max, unit) {
+  if (!container) {
     return;
   }
 
-  if (!timePickerHours.options.length) {
-    for (let hour = 0; hour < 24; hour += 1) {
-      const option = document.createElement("option");
-      option.value = String(hour);
-      option.textContent = String(hour).padStart(2, "0");
-      timePickerHours.append(option);
-    }
+  const values = [];
+  for (let offset = -3; offset <= 3; offset += 1) {
+    values.push(wrapPickerValue(selectedValue + offset, max));
   }
 
-  if (!timePickerMinutes.options.length) {
-    for (let minute = 0; minute < 60; minute += 1) {
-      const option = document.createElement("option");
-      option.value = String(minute);
-      option.textContent = String(minute).padStart(2, "0");
-      timePickerMinutes.append(option);
-    }
-  }
+  container.innerHTML = values
+    .map((value) => {
+      const isSelected = value === selectedValue;
+      return `
+        <button
+          type="button"
+          class="wheel-value${isSelected ? " is-selected" : ""}"
+          data-wheel="${unit}"
+          data-value="${value}"
+        >${String(value).padStart(2, "0")}</button>
+      `;
+    })
+    .join("");
 }
 
-function openTimePicker({ title, initialMinutes, onSet }) {
+function renderTimePickerWheels() {
+  if (!activeTimePicker) {
+    return;
+  }
+
+  renderWheelValues(timePickerHours, activeTimePicker.hour, 24, "hour");
+  renderWheelValues(timePickerMinutes, activeTimePicker.minute, 60, "minute");
+}
+
+function positionTimePicker(anchorEl) {
+  if (!timePickerDialog || !anchorEl) {
+    return;
+  }
+
+  const sheet = timePickerDialog.querySelector(".time-picker-sheet");
+  if (!sheet) {
+    return;
+  }
+
+  sheet.style.left = "";
+  sheet.style.right = "";
+  sheet.style.top = "";
+  sheet.style.bottom = "";
+  sheet.style.transform = "";
+
+  const gap = 8;
+  const margin = 8;
+  const anchorRect = anchorEl.getBoundingClientRect();
+  const sheetRect = sheet.getBoundingClientRect();
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+
+  if (viewportWidth <= 640) {
+    sheet.style.left = "50%";
+    sheet.style.bottom = "0.5rem";
+    sheet.style.transform = "translateX(-50%)";
+    return;
+  }
+
+  let left = anchorRect.right + gap;
+  if (left + sheetRect.width + margin > viewportWidth) {
+    left = anchorRect.left - sheetRect.width - gap;
+  }
+  if (left < margin) {
+    left = Math.max(margin, viewportWidth - sheetRect.width - margin);
+  }
+
+  let top = anchorRect.top + anchorRect.height / 2 - sheetRect.height / 2;
+  top = Math.max(margin, Math.min(top, viewportHeight - sheetRect.height - margin));
+
+  sheet.style.left = `${left}px`;
+  sheet.style.top = `${top}px`;
+}
+
+function openTimePicker({ title, initialMinutes, onSet, anchorEl }) {
   if (!timePickerDialog || !timePickerHours || !timePickerMinutes) {
     return;
   }
 
-  populateTimePickerOptions();
   const minutes = Math.max(0, Math.min(23 * 60 + 59, Math.round(initialMinutes || 0)));
-  timePickerHours.value = String(Math.floor(minutes / 60));
-  timePickerMinutes.value = String(minutes % 60);
+  activeTimePicker = {
+    hour: Math.floor(minutes / 60),
+    minute: minutes % 60,
+    onSet,
+    anchorEl,
+  };
   timePickerTitle.textContent = title;
-  activeTimePicker = { onSet };
   timePickerDialog.hidden = false;
-  timePickerHours.focus();
+  renderTimePickerWheels();
+  positionTimePicker(anchorEl);
 }
 
 function closeTimePicker() {
@@ -308,7 +370,23 @@ function closeTimePicker() {
 }
 
 function selectedPickerMinutes() {
-  return Number(timePickerHours.value) * 60 + Number(timePickerMinutes.value);
+  if (!activeTimePicker) {
+    return 0;
+  }
+  return activeTimePicker.hour * 60 + activeTimePicker.minute;
+}
+
+function setPickerPart(part, value) {
+  if (!activeTimePicker) {
+    return;
+  }
+
+  if (part === "hour") {
+    activeTimePicker.hour = wrapPickerValue(value, 24);
+  } else if (part === "minute") {
+    activeTimePicker.minute = wrapPickerValue(value, 60);
+  }
+  renderTimePickerWheels();
 }
 
 function syncStaticTimeTriggers() {
@@ -635,6 +713,7 @@ scheduleBodyEl.addEventListener("click", (event) => {
   openTimePicker({
     title: "Set duration",
     initialMinutes: Number(durationButton.dataset.durationMinutes || 0),
+    anchorEl: durationButton,
     onSet: (minutes) => {
       durationOverrides[slotIndex] = minutes;
       runCalculation();
@@ -652,6 +731,7 @@ document.querySelectorAll(".time-trigger[data-time-target]").forEach((button) =>
     openTimePicker({
       title: button.dataset.timeTarget === "shift-start" ? "Set off-duty time" : "Set all-on time",
       initialMinutes: parseClock(field.value, "Time"),
+      anchorEl: button,
       onSet: (minutes) => {
         field.value = formatDurationForPicker(minutes);
         syncStaticTimeTriggers();
@@ -672,6 +752,28 @@ timePickerSetButton?.addEventListener("click", () => {
 
 document.querySelectorAll("[data-time-picker-cancel]").forEach((button) => {
   button.addEventListener("click", closeTimePicker);
+});
+
+timePickerDialog?.addEventListener("click", (event) => {
+  const stepButton = event.target.closest?.(".wheel-step");
+  if (stepButton) {
+    const part = stepButton.dataset.wheel;
+    const delta = Number(stepButton.dataset.delta || 0);
+    const currentValue = part === "hour" ? activeTimePicker?.hour : activeTimePicker?.minute;
+    setPickerPart(part, Number(currentValue || 0) + delta);
+    return;
+  }
+
+  const valueButton = event.target.closest?.(".wheel-value");
+  if (valueButton) {
+    setPickerPart(valueButton.dataset.wheel, Number(valueButton.dataset.value || 0));
+  }
+});
+
+window.addEventListener("resize", () => {
+  if (activeTimePicker?.anchorEl) {
+    positionTimePicker(activeTimePicker.anchorEl);
+  }
 });
 
 document.addEventListener("keydown", (event) => {
