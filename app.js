@@ -3,8 +3,6 @@ const summaryEl = document.getElementById("summary");
 const scheduleBodyEl = document.getElementById("schedule-body");
 const scheduleWarningEl = document.getElementById("schedule-warning");
 const resetDurationsButton = document.getElementById("reset-durations");
-const controlsCard = document.querySelector(".controls");
-const scheduleCard = document.querySelector(".results-column > .card");
 const timePickerDialog = document.getElementById("time-picker-dialog");
 const timePickerTitle = document.getElementById("time-picker-title");
 const timePickerHours = document.getElementById("time-picker-hours");
@@ -482,28 +480,6 @@ function syncStaticTimeTriggers() {
   });
 }
 
-function syncPanelHeights() {
-  if (!controlsCard || !scheduleCard) {
-    return;
-  }
-
-  controlsCard.style.minHeight = "";
-  scheduleCard.style.minHeight = "";
-
-  if (window.matchMedia("(max-width: 900px)").matches) {
-    return;
-  }
-
-  requestAnimationFrame(() => {
-    controlsCard.style.minHeight = "";
-    scheduleCard.style.minHeight = "";
-    const matchedHeight = Math.max(controlsCard.offsetHeight, scheduleCard.offsetHeight);
-    controlsCard.style.minHeight = `${matchedHeight}px`;
-    scheduleCard.style.minHeight = `${matchedHeight}px`;
-  });
-}
-
-
 function calculateBreakWindowLength(shiftStart, shiftEnd) {
   let normalizedEnd = shiftEnd;
   if (normalizedEnd <= shiftStart) {
@@ -892,13 +868,11 @@ function runCalculation() {
     renderWarnings(results.warnings);
     renderSchedule(results);
     saveFormState(captureFormState());
-    syncPanelHeights();
   } catch (err) {
     summaryEl.innerHTML = "";
     scheduleBodyEl.innerHTML = "";
     renderWarnings([]);
     errorEl.textContent = err.message;
-    syncPanelHeights();
   }
 }
 
@@ -984,7 +958,6 @@ window.addEventListener("resize", () => {
   if (activeTimePicker?.anchorEl) {
     positionTimePicker(activeTimePicker.anchorEl);
   }
-  syncPanelHeights();
 });
 
 document.addEventListener("keydown", (event) => {
