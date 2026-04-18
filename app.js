@@ -20,7 +20,7 @@ const allowedCrewCounts = [2, 3];
 const formStateStorageKey = "crew-rest:last-form-state:v2";
 const legacyFormStateStorageKey = "crew-rest:last-form-state:v1";
 const themeStorageKey = "crew-rest:theme-mode:v1";
-const defaultThemeMode = "auto";
+const defaultThemeMode = "day";
 
 let durationOverrides = {};
 let activeTimePicker = null;
@@ -95,7 +95,7 @@ function loadFormState() {
 }
 
 function sanitizeThemeMode(mode) {
-  return ["day", "night", "auto"].includes(mode) ? mode : defaultThemeMode;
+  return mode === "night" ? "night" : defaultThemeMode;
 }
 
 function readThemeMode() {
@@ -114,26 +114,19 @@ function writeThemeMode(mode) {
   }
 }
 
-function resolveAppliedTheme(mode) {
-  const normalized = sanitizeThemeMode(mode);
-  if (normalized === "auto") {
-    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "night" : "day";
-  }
-  return normalized;
-}
-
 function applyTheme(mode = readThemeMode()) {
   const normalized = sanitizeThemeMode(mode);
-  const appliedTheme = resolveAppliedTheme(normalized);
   const rootEl = document.documentElement;
   if (rootEl?.dataset) {
     rootEl.dataset.themeMode = normalized;
-    rootEl.dataset.theme = appliedTheme;
+    rootEl.dataset.theme = normalized;
   }
 
-  const themeEl = document.querySelector("#theme-mode");
-  if (themeEl && themeEl.value !== normalized) {
-    themeEl.value = normalized;
+  const themeToggle = document.querySelector("#theme-toggle");
+  if (themeToggle) {
+    const isNight = normalized === "night";
+    themeToggle.setAttribute("aria-pressed", String(isNight));
+    themeToggle.setAttribute("aria-label", isNight ? "Switch to day mode" : "Switch to night mode");
   }
 
   const themeColorMeta = document.querySelector('meta[name="theme-color"]');
@@ -146,36 +139,16 @@ function applyTheme(mode = readThemeMode()) {
 }
 
 function bindThemeControls() {
-  const themeEl = document.querySelector("#theme-mode");
-  if (!themeEl) {
+  const themeToggle = document.querySelector("#theme-toggle");
+  if (!themeToggle) {
     return;
   }
 
-  themeEl.value = readThemeMode();
-  themeEl.addEventListener("change", () => {
-    const mode = sanitizeThemeMode(themeEl.value);
-    writeThemeMode(mode);
-    applyTheme(mode);
+  themeToggle.addEventListener("click", () => {
+    const nextMode = readThemeMode() === "night" ? "day" : "night";
+    writeThemeMode(nextMode);
+    applyTheme(nextMode);
   });
-}
-
-function bindThemeAutoUpdates() {
-  const mediaQuery = window.matchMedia?.("(prefers-color-scheme: dark)");
-  if (!mediaQuery) {
-    return;
-  }
-
-  const syncAutoTheme = () => {
-    if (readThemeMode() === "auto") {
-      applyTheme("auto");
-    }
-  };
-
-  if (typeof mediaQuery.addEventListener === "function") {
-    mediaQuery.addEventListener("change", syncAutoTheme);
-  } else if (typeof mediaQuery.addListener === "function") {
-    mediaQuery.addListener(syncAutoTheme);
-  }
 }
 
 function registerServiceWorker() {
@@ -789,7 +762,6 @@ resetDurationsButton?.addEventListener("click", () => {
 
 applyTheme();
 bindThemeControls();
-bindThemeAutoUpdates();
 
 const persistedState = loadFormState();
 if (persistedState) {

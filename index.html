@@ -28,14 +28,11 @@
           </svg>
           <h1>Crew Rest</h1>
         </div>
-        <label class="theme-field">
-          <span class="theme-label">Theme</span>
-          <select id="theme-mode" aria-label="Theme mode">
-            <option value="day">Day</option>
-            <option value="night">Night</option>
-            <option value="auto">Auto</option>
-          </select>
-        </label>
+        <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch to night mode" aria-pressed="false">
+          <span class="theme-toggle-icon theme-toggle-sun" aria-hidden="true">☀</span>
+          <span class="theme-toggle-icon theme-toggle-moon" aria-hidden="true">☾</span>
+          <span class="theme-toggle-thumb" aria-hidden="true"></span>
+        </button>
       </header>
 
       <div class="layout">
