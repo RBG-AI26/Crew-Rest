@@ -7,7 +7,6 @@ const timePickerDialog = document.getElementById("time-picker-dialog");
 const timePickerTitle = document.getElementById("time-picker-title");
 const timePickerHours = document.getElementById("time-picker-hours");
 const timePickerMinutes = document.getElementById("time-picker-minutes");
-const timePickerSetButton = document.getElementById("time-picker-set");
 
 const input = {
   shiftStart: document.getElementById("shift-start"),
@@ -24,6 +23,8 @@ const defaultThemeMode = "day";
 
 let durationOverrides = {};
 let activeTimePicker = null;
+const wheelScrollFrames = {};
+let suppressWheelScroll = false;
 
 function saveFormState(state) {
   try {
@@ -243,12 +244,9 @@ function renderWheelValues(container, selectedValue, max, unit) {
     return;
   }
 
-  const values = [];
-  for (let offset = -3; offset <= 3; offset += 1) {
-    values.push(wrapPickerValue(selectedValue + offset, max));
-  }
-
-  container.innerHTML = values
+  container.dataset.wheel = unit;
+  container.dataset.max = String(max);
+  container.innerHTML = Array.from({ length: max }, (_, value) => value)
     .map((value) => {
       const isSelected = value === selectedValue;
       return `
@@ -263,6 +261,36 @@ function renderWheelValues(container, selectedValue, max, unit) {
     .join("");
 }
 
+function updateWheelSelection(container, selectedValue) {
+  if (!container) {
+    return;
+  }
+
+  container.querySelectorAll(".wheel-value").forEach((button) => {
+    const isSelected = Number(button.dataset.value) === selectedValue;
+    button.classList.toggle("is-selected", isSelected);
+    button.setAttribute("aria-pressed", isSelected ? "true" : "false");
+  });
+}
+
+function scrollWheelToValue(container, selectedValue, smooth = false) {
+  if (!container) {
+    return;
+  }
+
+  const selectedButton = container.querySelector(`.wheel-value[data-value="${selectedValue}"]`);
+  if (!selectedButton) {
+    return;
+  }
+
+  const targetTop =
+    selectedButton.offsetTop - (container.clientHeight - selectedButton.offsetHeight) / 2;
+  container.scrollTo({
+    top: Math.max(0, targetTop),
+    behavior: smooth ? "smooth" : "auto",
+  });
+}
+
 function renderTimePickerWheels() {
   if (!activeTimePicker) {
     return;
@@ -270,6 +298,14 @@ function renderTimePickerWheels() {
 
   renderWheelValues(timePickerHours, activeTimePicker.hour, 24, "hour");
   renderWheelValues(timePickerMinutes, activeTimePicker.minute, 60, "minute");
+  requestAnimationFrame(() => {
+    suppressWheelScroll = true;
+    scrollWheelToValue(timePickerHours, activeTimePicker.hour);
+    scrollWheelToValue(timePickerMinutes, activeTimePicker.minute);
+    window.setTimeout(() => {
+      suppressWheelScroll = false;
+    }, 80);
+  });
 }
 
 function positionTimePicker(anchorEl) {
@@ -349,17 +385,71 @@ function selectedPickerMinutes() {
   return activeTimePicker.hour * 60 + activeTimePicker.minute;
 }
 
-function setPickerPart(part, value) {
+function selectedWheelValue(container) {
+  if (!container) {
+    return 0;
+  }
+
+  const center = container.scrollTop + container.clientHeight / 2;
+  const values = Array.from(container.querySelectorAll(".wheel-value"));
+  if (!values.length) {
+    return 0;
+  }
+
+  let nearest = values[0];
+  let nearestDistance = Infinity;
+  for (const valueEl of values) {
+    const valueCenter = valueEl.offsetTop + valueEl.offsetHeight / 2;
+    const distance = Math.abs(center - valueCenter);
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearest = valueEl;
+    }
+  }
+
+  return Number(nearest.dataset.value || 0);
+}
+
+function applyActivePickerValue() {
+  if (activeTimePicker?.onSet) {
+    activeTimePicker.onSet(selectedPickerMinutes());
+  }
+}
+
+function setPickerPart(part, value, options = {}) {
   if (!activeTimePicker) {
     return;
   }
 
+  const { syncScroll = true } = options;
+
   if (part === "hour") {
     activeTimePicker.hour = wrapPickerValue(value, 24);
+    updateWheelSelection(timePickerHours, activeTimePicker.hour);
+    if (syncScroll) {
+      scrollWheelToValue(timePickerHours, activeTimePicker.hour);
+    }
   } else if (part === "minute") {
     activeTimePicker.minute = wrapPickerValue(value, 60);
+    updateWheelSelection(timePickerMinutes, activeTimePicker.minute);
+    if (syncScroll) {
+      scrollWheelToValue(timePickerMinutes, activeTimePicker.minute);
+    }
   }
-  renderTimePickerWheels();
+
+  applyActivePickerValue();
+}
+
+function handleWheelScroll(container) {
+  const part = container?.dataset.wheel;
+  if (!part || !activeTimePicker || suppressWheelScroll) {
+    return;
+  }
+
+  cancelAnimationFrame(wheelScrollFrames[part]);
+  wheelScrollFrames[part] = requestAnimationFrame(() => {
+    setPickerPart(part, selectedWheelValue(container), { syncScroll: false });
+  });
 }
 
 function syncStaticTimeTriggers() {
@@ -714,33 +804,23 @@ document.querySelectorAll(".time-trigger[data-time-target]").forEach((button) =>
   });
 });
 
-timePickerSetButton?.addEventListener("click", () => {
-  const picker = activeTimePicker;
-  if (!picker) {
-    return;
-  }
-  picker.onSet(selectedPickerMinutes());
-  closeTimePicker();
-});
-
 document.querySelectorAll("[data-time-picker-cancel]").forEach((button) => {
   button.addEventListener("click", closeTimePicker);
 });
 
 timePickerDialog?.addEventListener("click", (event) => {
-  const stepButton = event.target.closest?.(".wheel-step");
-  if (stepButton) {
-    const part = stepButton.dataset.wheel;
-    const delta = Number(stepButton.dataset.delta || 0);
-    const currentValue = part === "hour" ? activeTimePicker?.hour : activeTimePicker?.minute;
-    setPickerPart(part, Number(currentValue || 0) + delta);
-    return;
-  }
-
   const valueButton = event.target.closest?.(".wheel-value");
   if (valueButton) {
     setPickerPart(valueButton.dataset.wheel, Number(valueButton.dataset.value || 0));
   }
+});
+
+timePickerHours?.addEventListener("scroll", () => handleWheelScroll(timePickerHours), {
+  passive: true,
+});
+
+timePickerMinutes?.addEventListener("scroll", () => handleWheelScroll(timePickerMinutes), {
+  passive: true,
 });
 
 window.addEventListener("resize", () => {
