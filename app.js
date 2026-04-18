@@ -3,6 +3,8 @@ const summaryEl = document.getElementById("summary");
 const scheduleBodyEl = document.getElementById("schedule-body");
 const scheduleWarningEl = document.getElementById("schedule-warning");
 const resetDurationsButton = document.getElementById("reset-durations");
+const controlsCard = document.querySelector(".controls");
+const scheduleCard = document.querySelector(".results-column > .card");
 const timePickerDialog = document.getElementById("time-picker-dialog");
 const timePickerTitle = document.getElementById("time-picker-title");
 const timePickerHours = document.getElementById("time-picker-hours");
@@ -416,6 +418,25 @@ function applyActivePickerValue() {
   }
 }
 
+function syncActivePickerToMinutes(minutes) {
+  if (!activeTimePicker || !Number.isFinite(minutes)) {
+    return;
+  }
+
+  const normalizedMinutes = Math.max(0, Math.min(23 * 60 + 59, Math.round(minutes)));
+  activeTimePicker.hour = Math.floor(normalizedMinutes / 60);
+  activeTimePicker.minute = normalizedMinutes % 60;
+  updateWheelSelection(timePickerHours, activeTimePicker.hour);
+  updateWheelSelection(timePickerMinutes, activeTimePicker.minute);
+
+  suppressWheelScroll = true;
+  scrollWheelToValue(timePickerHours, activeTimePicker.hour);
+  scrollWheelToValue(timePickerMinutes, activeTimePicker.minute);
+  window.setTimeout(() => {
+    suppressWheelScroll = false;
+  }, 80);
+}
+
 function setPickerPart(part, value, options = {}) {
   if (!activeTimePicker) {
     return;
@@ -461,6 +482,27 @@ function syncStaticTimeTriggers() {
   });
 }
 
+function syncPanelHeights() {
+  if (!controlsCard || !scheduleCard) {
+    return;
+  }
+
+  controlsCard.style.minHeight = "";
+  scheduleCard.style.minHeight = "";
+
+  if (window.matchMedia("(max-width: 900px)").matches) {
+    return;
+  }
+
+  requestAnimationFrame(() => {
+    controlsCard.style.minHeight = "";
+    scheduleCard.style.minHeight = "";
+    const matchedHeight = Math.max(controlsCard.offsetHeight, scheduleCard.offsetHeight);
+    controlsCard.style.minHeight = `${matchedHeight}px`;
+    scheduleCard.style.minHeight = `${matchedHeight}px`;
+  });
+}
+
 
 function calculateBreakWindowLength(shiftStart, shiftEnd) {
   let normalizedEnd = shiftEnd;
@@ -488,12 +530,21 @@ function readConfig() {
     throw new Error("Crew count must be 2 or 3 and breaks must be at least 1.");
   }
 
+  const shiftStart = parseClock(input.shiftStart.value, "Off duty");
+  const shiftEnd = parseClock(input.shiftEnd.value, "All on");
+  const breakWindowLength = calculateBreakWindowLength(shiftStart, shiftEnd);
+
   return {
-    shiftStart: parseClock(input.shiftStart.value, "Off duty"),
-    shiftEnd: parseClock(input.shiftEnd.value, "All on"),
+    shiftStart,
+    shiftEnd,
     crewCount,
     rounds,
-    durationOverrides: sanitizeDurationOverrides(durationOverrides, crewCount, rounds),
+    durationOverrides: normalizeDurationOverridesForSchedule(
+      durationOverrides,
+      crewCount,
+      rounds,
+      breakWindowLength
+    ),
   };
 }
 
@@ -503,6 +554,107 @@ function slotIndexesByCrew(order, crewCount) {
     byCrew[order[index] - 1].push(index);
   }
   return byCrew;
+}
+
+function orderedManualIndexesForCrew(overrides, crewIndexes) {
+  const crewIndexSet = new Set(crewIndexes);
+  return Object.keys(overrides)
+    .map(Number)
+    .filter((index) => crewIndexSet.has(index));
+}
+
+function enforceOneAutoBreakPerCrew(overrides, indexesByCrew) {
+  for (const crewIndexes of indexesByCrew) {
+    let manualIndexes = orderedManualIndexesForCrew(overrides, crewIndexes);
+    while (manualIndexes.length >= crewIndexes.length && manualIndexes.length > 0) {
+      delete overrides[String(manualIndexes[0])];
+      manualIndexes = orderedManualIndexesForCrew(overrides, crewIndexes);
+    }
+  }
+  return overrides;
+}
+
+function clampCrewManualTotals(overrides, indexesByCrew, targetMinutes) {
+  for (const crewIndexes of indexesByCrew) {
+    const manualIndexes = orderedManualIndexesForCrew(overrides, crewIndexes);
+    let manualTotal = manualIndexes.reduce(
+      (total, index) => total + overrides[String(index)],
+      0
+    );
+
+    for (let i = manualIndexes.length - 1; i >= 0 && manualTotal > targetMinutes; i -= 1) {
+      const key = String(manualIndexes[i]);
+      const excess = manualTotal - targetMinutes;
+      const adjusted = Math.max(0, overrides[key] - excess);
+      manualTotal -= overrides[key] - adjusted;
+      overrides[key] = adjusted;
+    }
+  }
+  return overrides;
+}
+
+function normalizeDurationOverridesForSchedule(rawOverrides, crewCount, rounds, breakWindowLength) {
+  const overrides = sanitizeDurationOverrides(rawOverrides, crewCount, rounds);
+  const order = crewOrder(crewCount, rounds);
+  const indexesByCrew = slotIndexesByCrew(order, crewCount);
+  const targetMinutes = Math.round(breakWindowLength / crewCount);
+
+  enforceOneAutoBreakPerCrew(overrides, indexesByCrew);
+  clampCrewManualTotals(overrides, indexesByCrew, targetMinutes);
+  return overrides;
+}
+
+function applyDurationOverride(slotIndex, minutes) {
+  const crewCount = Number(input.crewCount.value);
+  const rounds = Number(input.rounds.value);
+  if (!allowedCrewCounts.includes(crewCount) || !Number.isInteger(rounds) || rounds < 1) {
+    return null;
+  }
+
+  const shiftStart = parseClock(input.shiftStart.value, "Off duty");
+  const shiftEnd = parseClock(input.shiftEnd.value, "All on");
+  const breakWindowLength = calculateBreakWindowLength(shiftStart, shiftEnd);
+  const order = crewOrder(crewCount, rounds);
+  const indexesByCrew = slotIndexesByCrew(order, crewCount);
+  const crew = order[slotIndex];
+  const crewIndexes = indexesByCrew[crew - 1] || [];
+  const slotKey = String(slotIndex);
+  const overrides = sanitizeDurationOverrides(durationOverrides, crewCount, rounds);
+  const otherManualTotal = crewIndexes
+    .filter((index) => index !== slotIndex && overrides[String(index)] != null)
+    .reduce((total, index) => total + overrides[String(index)], 0);
+  const targetMinutes = Math.round(breakWindowLength / crewCount);
+  const maxCurrentDuration = Math.max(0, targetMinutes - otherManualTotal);
+  const wasManual = overrides[slotKey] != null;
+
+  if (!wasManual) {
+    delete overrides[slotKey];
+  }
+  overrides[slotKey] = Math.max(0, Math.min(Math.round(minutes), maxCurrentDuration));
+
+  if (!wasManual) {
+    const manualIndexes = orderedManualIndexesForCrew(overrides, crewIndexes);
+    if (manualIndexes.length >= crewIndexes.length) {
+      const oldestManualIndex = manualIndexes.find((index) => index !== slotIndex);
+      if (oldestManualIndex != null) {
+        delete overrides[String(oldestManualIndex)];
+      }
+    }
+  }
+
+  durationOverrides = normalizeDurationOverridesForSchedule(
+    overrides,
+    crewCount,
+    rounds,
+    breakWindowLength
+  );
+
+  const { durations } = buildSlotDurations(
+    { crewCount, rounds, durationOverrides },
+    breakWindowLength,
+    order
+  );
+  return durations[slotIndex] ?? null;
 }
 
 function distributeMinutes(totalMinutes, slotCount) {
@@ -740,11 +892,13 @@ function runCalculation() {
     renderWarnings(results.warnings);
     renderSchedule(results);
     saveFormState(captureFormState());
+    syncPanelHeights();
   } catch (err) {
     summaryEl.innerHTML = "";
     scheduleBodyEl.innerHTML = "";
     renderWarnings([]);
     errorEl.textContent = err.message;
+    syncPanelHeights();
   }
 }
 
@@ -778,8 +932,11 @@ scheduleBodyEl.addEventListener("click", (event) => {
     initialMinutes: Number(durationButton.dataset.durationMinutes || 0),
     anchorEl: durationButton,
     onSet: (minutes) => {
-      durationOverrides[slotIndex] = minutes;
+      const appliedMinutes = applyDurationOverride(Number(slotIndex), minutes);
       runCalculation();
+      if (appliedMinutes !== minutes) {
+        syncActivePickerToMinutes(appliedMinutes);
+      }
     },
   });
 });
@@ -827,6 +984,7 @@ window.addEventListener("resize", () => {
   if (activeTimePicker?.anchorEl) {
     positionTimePicker(activeTimePicker.anchorEl);
   }
+  syncPanelHeights();
 });
 
 document.addEventListener("keydown", (event) => {
