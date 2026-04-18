@@ -232,6 +232,11 @@ body {
   min-height: 480px;
 }
 
+.results-column > .card {
+  display: flex;
+  flex-direction: column;
+}
+
 .controls {
   padding: 1.35rem 1.35rem;
 }
@@ -630,12 +635,15 @@ button svg {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   margin: -0.1rem;
+  flex: 1;
+  display: flex;
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
   min-width: 340px;
+  height: 100%;
 }
 
 thead tr {
@@ -655,7 +663,7 @@ th {
 }
 
 td {
-  padding: 0.55rem 0.65rem;
+  padding: 0.9rem 0.65rem;
   border-bottom: 1px solid var(--line);
   font-size: 13px;
   color: var(--ink);
