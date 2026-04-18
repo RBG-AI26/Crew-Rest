@@ -221,7 +221,7 @@ body {
   margin-bottom: 0.85rem;
 }
 
-/* ── Section heading + transfer toolbar ──────── */
+/* ── Section heading ─────────────────────────── */
 
 .section-heading {
   display: flex;
@@ -234,21 +234,6 @@ body {
 .section-heading h2 {
   margin-bottom: 0;
 }
-
-.transfer-toolbar {
-  display: flex;
-  gap: 0.4rem;
-}
-
-.transfer-status {
-  min-height: 1.1em;
-  font-size: 0.75rem;
-  color: var(--ink-faint);
-  margin-bottom: 0.5rem;
-}
-
-.transfer-status.is-error   { color: var(--warn); }
-.transfer-status.is-success { color: var(--accent); }
 
 /* ── Field groups ─────────────────────────────── */
 
@@ -307,6 +292,7 @@ body {
 
 input[type="text"],
 input[type="number"],
+input[type="time"],
 select {
   width: 100%;
   height: 38px;
@@ -328,6 +314,7 @@ input[type="number"] {
 
 input[type="text"]:focus,
 input[type="number"]:focus,
+input[type="time"]:focus,
 select:focus {
   outline: none;
   border-color: var(--accent);
@@ -348,76 +335,10 @@ select {
 
 /* Monospaced time inputs */
 #shift-start,
-#shift-end,
-#short-break-duration-1,
-#short-break-duration-2,
-#short-break-duration-3 {
+#shift-end {
   font-family: var(--font-mono);
   font-size: 15px;
   letter-spacing: 0.03em;
-}
-
-/* ── Checkbox ─────────────────────────────────── */
-
-.checkbox-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  cursor: pointer;
-  user-select: none;
-  width: fit-content;
-}
-
-.checkbox-label input[type="checkbox"] {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-  pointer-events: none;
-}
-
-.checkbox-custom {
-  width: 17px;
-  height: 17px;
-  border-radius: 5px;
-  border: 1.5px solid var(--line-strong);
-  background: var(--input-bg);
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.12s, border-color 0.12s;
-}
-
-.check-icon {
-  width: 10px;
-  height: 8px;
-  opacity: 0;
-  transition: opacity 0.1s;
-}
-
-.checkbox-label input[type="checkbox"]:checked + .checkbox-custom {
-  background: var(--accent);
-  border-color: var(--accent);
-}
-
-.checkbox-label input[type="checkbox"]:checked + .checkbox-custom .check-icon {
-  opacity: 1;
-}
-
-.checkbox-label:hover .checkbox-custom {
-  border-color: var(--accent-mid);
-}
-
-.checkbox-label input[type="checkbox"]:focus-visible + .checkbox-custom {
-  box-shadow: 0 0 0 3px var(--input-focus-ring);
-  border-color: var(--accent);
-}
-
-.checkbox-text {
-  font-size: 0.8rem;
-  color: var(--ink-muted);
-  font-weight: 400;
 }
 
 /* ── Buttons ──────────────────────────────────── */
@@ -453,6 +374,40 @@ button svg {
 
 .secondary {
   background: transparent;
+}
+
+.schedule-warning {
+  margin: -0.35rem 0 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid rgba(192, 57, 43, 0.25);
+  border-radius: var(--radius-sm);
+  background: var(--warn-bg);
+  color: var(--warn);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.duration-editor {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  max-width: 150px;
+}
+
+.schedule-duration-input {
+  min-width: 92px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  letter-spacing: 0.02em;
+}
+
+.duration-source {
+  min-width: 2.2rem;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
 }
 
 /* ── Summary grid ─────────────────────────────── */

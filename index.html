@@ -43,24 +43,7 @@
         <section class="card controls">
           <div class="section-heading">
             <h2>Inputs</h2>
-            <div class="transfer-toolbar">
-              <button type="button" id="export-data" class="secondary">
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                  <path d="M6 1v6.5M3.5 5l2.5 2.5L8.5 5M1 9.5V11h10V9.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                Export
-              </button>
-              <button type="button" id="import-data" class="secondary">
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                  <path d="M6 8V1.5M3.5 4l2.5-2.5L8.5 4M1 9.5V11h10V9.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                Import
-              </button>
-              <input id="import-data-file" type="file" accept=".json,application/json" hidden />
-            </div>
           </div>
-
-          <p id="transfer-status" class="transfer-status" aria-live="polite"></p>
 
           <div id="config-form">
 
@@ -71,12 +54,10 @@
                   <span class="field-label">Off duty</span>
                   <input
                     id="shift-start"
-                    type="text"
+                    type="time"
                     value="00:00"
-                    inputmode="numeric"
-                    placeholder="HH:MM"
-                    maxlength="5"
-                    title="Use 24-hour time (for example 1900 or 19:00)"
+                    step="60"
+                    title="Choose off-duty time"
                     required
                   />
                 </label>
@@ -85,12 +66,10 @@
                   <span class="field-label">All on</span>
                   <input
                     id="shift-end"
-                    type="text"
+                    type="time"
                     value="17:00"
-                    inputmode="numeric"
-                    placeholder="HH:MM"
-                    maxlength="5"
-                    title="Use 24-hour time (for example 0400 or 04:00)"
+                    step="60"
+                    title="Choose all-on time"
                     required
                   />
                 </label>
@@ -114,73 +93,6 @@
               </div>
             </div>
 
-            <div id="short-breaks-section" class="field-group" hidden>
-              <span class="field-group-label">Short break durations</span>
-              <label class="checkbox-label" id="short-break-sync-wrap">
-                <input
-                  id="short-break-sync-toggle"
-                  type="checkbox"
-                  checked
-                  aria-label="Same short break duration for all crews"
-                />
-                <span class="checkbox-custom" aria-hidden="true">
-                  <svg class="check-icon" viewBox="0 0 10 8" fill="none">
-                    <path d="M1 4l3 3 5-6" stroke="white" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                </span>
-                <span class="checkbox-text">Same duration for all crews</span>
-              </label>
-              <div class="field-row break-fields-row">
-                <label class="field" id="short-break-duration-1-wrap">
-                  <span class="field-label">Crew 1</span>
-                  <input
-                    id="short-break-duration-1"
-                    type="text"
-                    value="2:30"
-                    inputmode="numeric"
-                    placeholder="H:MM"
-                    maxlength="5"
-                    title="Duration H:MM (for example 2:30)"
-                  />
-                </label>
-                <label class="field" id="short-break-duration-2-wrap">
-                  <span class="field-label">Crew 2</span>
-                  <input
-                    id="short-break-duration-2"
-                    type="text"
-                    value="2:30"
-                    inputmode="numeric"
-                    placeholder="H:MM"
-                    maxlength="5"
-                    title="Duration H:MM (for example 2:30)"
-                  />
-                </label>
-                <label class="field" id="short-break-duration-3-wrap" hidden>
-                  <span class="field-label">Crew 3</span>
-                  <input
-                    id="short-break-duration-3"
-                    type="text"
-                    value="2:30"
-                    inputmode="numeric"
-                    placeholder="H:MM"
-                    maxlength="5"
-                    title="Duration H:MM (for example 2:30)"
-                  />
-                </label>
-              </div>
-            </div>
-
-            <div id="pattern-wrap" class="field-group" hidden>
-              <span class="field-group-label">Rest pattern</span>
-              <label class="field">
-                <span class="field-label">Rest order (S/L)</span>
-                <select
-                  id="pattern-sequence"
-                  title="Choose a pattern option that keeps total rest equal across crews"
-                ></select>
-              </label>
-            </div>
-
           </div>
 
           <p id="error" class="error" role="alert"></p>
@@ -193,7 +105,11 @@
           </section>
 
           <section class="card">
-            <h2>Schedule</h2>
+            <div class="section-heading">
+              <h2>Schedule</h2>
+              <button type="button" id="reset-durations" class="secondary">Reset durations</button>
+            </div>
+            <p id="schedule-warning" class="schedule-warning" role="alert"></p>
             <div class="table-wrap">
               <table>
                 <thead>

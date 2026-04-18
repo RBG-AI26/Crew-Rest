@@ -1,183 +1,23 @@
 const errorEl = document.getElementById("error");
 const summaryEl = document.getElementById("summary");
 const scheduleBodyEl = document.getElementById("schedule-body");
-const transferStatusEl = document.getElementById("transfer-status");
-const exportDataButton = document.getElementById("export-data");
-const importDataButton = document.getElementById("import-data");
-const importDataFileInput = document.getElementById("import-data-file");
-const shortBreaksSectionEl = document.getElementById("short-breaks-section");
+const scheduleWarningEl = document.getElementById("schedule-warning");
+const resetDurationsButton = document.getElementById("reset-durations");
 
 const input = {
   shiftStart: document.getElementById("shift-start"),
   shiftEnd: document.getElementById("shift-end"),
   crewCount: document.getElementById("crew-count"),
   rounds: document.getElementById("rounds"),
-  shortBreakSyncToggle: document.getElementById("short-break-sync-toggle"),
-  shortBreakDuration1Wrap: document.getElementById("short-break-duration-1-wrap"),
-  shortBreakDuration1: document.getElementById("short-break-duration-1"),
-  shortBreakDuration2Wrap: document.getElementById("short-break-duration-2-wrap"),
-  shortBreakDuration2: document.getElementById("short-break-duration-2"),
-  shortBreakDuration3Wrap: document.getElementById("short-break-duration-3-wrap"),
-  shortBreakDuration3: document.getElementById("short-break-duration-3"),
-  patternWrap: document.getElementById("pattern-wrap"),
-  patternSequence: document.getElementById("pattern-sequence"),
 };
+
 const allowedCrewCounts = [2, 3];
-const maxPatternOptions = 200;
-const maxPatternCandidates = 100000;
-const formStateStorageKey = "crew-rest:last-form-state:v1";
+const formStateStorageKey = "crew-rest:last-form-state:v2";
+const legacyFormStateStorageKey = "crew-rest:last-form-state:v1";
 const themeStorageKey = "crew-rest:theme-mode:v1";
 const defaultThemeMode = "auto";
-const transferFileVersion = 1;
-const evenPatternValue = "__EVEN__";
-const evenPatternLabel = "All Crew Even Breaks";
-let lastAcceptedState = null;
-let isRevertingSelection = false;
 
-function setTransferStatus(message, tone = "") {
-  if (!transferStatusEl) {
-    return;
-  }
-
-  transferStatusEl.textContent = message;
-  transferStatusEl.classList.remove("is-error", "is-success");
-  if (tone === "error") {
-    transferStatusEl.classList.add("is-error");
-  } else if (tone === "success") {
-    transferStatusEl.classList.add("is-success");
-  }
-}
-
-function buildTransferPayload() {
-  return {
-    type: "crew-rest-transfer",
-    version: transferFileVersion,
-    exportedAt: new Date().toISOString(),
-    themeMode: readThemeMode(),
-    formState: captureFormState(),
-  };
-}
-
-function buildTransferFileParts() {
-  const payload = buildTransferPayload();
-  const stamp = payload.exportedAt.slice(0, 19).replace(/[:T]/g, "-");
-  const fileName = `crew-rest-${stamp}.json`;
-  const fileText = JSON.stringify(payload, null, 2);
-  const blob = new Blob([fileText], { type: "application/json" });
-  return { payload, fileName, fileText, blob };
-}
-
-function updateExportButtonState() {
-  if (!exportDataButton) {
-    return;
-  }
-  exportDataButton.title = "Download a transfer file you can import on another device.";
-}
-
-function sanitizeImportedFormState(rawState) {
-  if (!rawState || typeof rawState !== "object") {
-    throw new Error("Import file is missing form data.");
-  }
-
-  const normalized = {
-    shiftStart: String(rawState.shiftStart ?? ""),
-    shiftEnd: String(rawState.shiftEnd ?? ""),
-    crewCount: String(rawState.crewCount ?? ""),
-    rounds: String(rawState.rounds ?? ""),
-    shortBreakDuration1: String(rawState.shortBreakDuration1 ?? ""),
-    shortBreakDuration2: String(rawState.shortBreakDuration2 ?? ""),
-    shortBreakDuration3: String(rawState.shortBreakDuration3 ?? ""),
-    patternSequence: String(rawState.patternSequence ?? ""),
-    shortBreakMode: rawState.shortBreakMode === "different" ? "different" : "same",
-  };
-
-  if (!allowedCrewCounts.includes(Number(normalized.crewCount))) {
-    throw new Error("Import file has an unsupported crew count.");
-  }
-
-  if (!Number.isFinite(Number(normalized.rounds)) || Number(normalized.rounds) < 1) {
-    throw new Error("Import file has an invalid break count.");
-  }
-
-  return normalized;
-}
-
-function applyImportedPayload(payload) {
-  if (!payload || payload.type !== "crew-rest-transfer") {
-    throw new Error("This file is not a Crew Rest transfer file.");
-  }
-
-  const importedState = sanitizeImportedFormState(payload.formState);
-  const importedThemeMode = sanitizeThemeMode(payload.themeMode);
-
-  applyFormState(importedState);
-  writeThemeMode(importedThemeMode);
-  applyTheme(importedThemeMode);
-  runCalculation();
-  lastAcceptedState = captureFormState();
-  saveFormState(lastAcceptedState);
-}
-
-async function exportCurrentData() {
-  try {
-    const { fileName, fileText } = buildTransferFileParts();
-    const downloadUrl = URL.createObjectURL(
-      new Blob([fileText], { type: "application/json" })
-    );
-    const link = document.createElement("a");
-    link.href = downloadUrl;
-    link.download = fileName;
-    document.body.append(link);
-    link.click();
-    link.remove();
-    setTimeout(() => {
-      URL.revokeObjectURL(downloadUrl);
-    }, 1000);
-  } catch (err) {
-    setTransferStatus("Could not export data.", "error");
-  }
-}
-
-function importSelectedFile(file) {
-  if (!file) {
-    return;
-  }
-
-  const reader = new FileReader();
-  reader.addEventListener("load", () => {
-    try {
-      const payload = JSON.parse(String(reader.result || ""));
-      applyImportedPayload(payload);
-      setTransferStatus("Data imported successfully.", "success");
-    } catch (err) {
-      setTransferStatus(err.message || "Could not import that file.", "error");
-    } finally {
-      importDataFileInput.value = "";
-    }
-  });
-  reader.addEventListener("error", () => {
-    setTransferStatus("Could not read that file.", "error");
-    importDataFileInput.value = "";
-  });
-  reader.readAsText(file);
-}
-
-function bindTransferControls() {
-  updateExportButtonState();
-
-  if (exportDataButton) {
-    exportDataButton.addEventListener("click", exportCurrentData);
-  }
-
-  if (importDataButton && importDataFileInput) {
-    importDataButton.addEventListener("click", () => {
-      importDataFileInput.click();
-    });
-    importDataFileInput.addEventListener("change", () => {
-      importSelectedFile(importDataFileInput.files?.[0]);
-    });
-  }
-}
+let durationOverrides = {};
 
 function saveFormState(state) {
   try {
@@ -187,42 +27,65 @@ function saveFormState(state) {
   }
 }
 
-function loadFormState() {
+function loadJsonState(key) {
   try {
-    const serialized = localStorage.getItem(formStateStorageKey);
+    const serialized = localStorage.getItem(key);
     if (!serialized) {
       return null;
     }
-
     const parsed = JSON.parse(serialized);
-    if (!parsed || typeof parsed !== "object") {
-      return null;
-    }
-
-    const normalized = {
-      shiftStart: String(parsed.shiftStart ?? ""),
-      shiftEnd: String(parsed.shiftEnd ?? ""),
-      crewCount: String(parsed.crewCount ?? ""),
-      rounds: String(parsed.rounds ?? ""),
-      shortBreakDuration1: String(parsed.shortBreakDuration1 ?? ""),
-      shortBreakDuration2: String(parsed.shortBreakDuration2 ?? ""),
-      shortBreakDuration3: String(parsed.shortBreakDuration3 ?? ""),
-      patternSequence: String(parsed.patternSequence ?? ""),
-      shortBreakMode: parsed.shortBreakMode === "different" ? "different" : "same",
-    };
-
-    if (!allowedCrewCounts.includes(Number(normalized.crewCount))) {
-      return null;
-    }
-
-    if (!Number.isFinite(Number(normalized.rounds)) || Number(normalized.rounds) < 1) {
-      return null;
-    }
-
-    return normalized;
+    return parsed && typeof parsed === "object" ? parsed : null;
   } catch (err) {
     return null;
   }
+}
+
+function sanitizeDurationOverrides(rawOverrides, crewCount, rounds) {
+  if (!rawOverrides || typeof rawOverrides !== "object") {
+    return {};
+  }
+
+  const slotCount = crewCount * rounds;
+  const sanitized = {};
+  for (const [rawKey, rawValue] of Object.entries(rawOverrides)) {
+    const index = Number(rawKey);
+    const minutes = Number(rawValue);
+    if (
+      Number.isInteger(index) &&
+      index >= 0 &&
+      index < slotCount &&
+      Number.isInteger(minutes) &&
+      minutes >= 0 &&
+      minutes < 24 * 60
+    ) {
+      sanitized[String(index)] = minutes;
+    }
+  }
+  return sanitized;
+}
+
+function normalizeLoadedState(rawState) {
+  if (!rawState || typeof rawState !== "object") {
+    return null;
+  }
+
+  const crewCount = Number(rawState.crewCount ?? "");
+  const rounds = Number(rawState.rounds ?? "");
+  if (!allowedCrewCounts.includes(crewCount) || !Number.isFinite(rounds) || rounds < 1) {
+    return null;
+  }
+
+  return {
+    shiftStart: normalizeClockValue(rawState.shiftStart) || "00:00",
+    shiftEnd: normalizeClockValue(rawState.shiftEnd) || "17:00",
+    crewCount: String(crewCount),
+    rounds: String(Math.floor(rounds)),
+    durationOverrides: sanitizeDurationOverrides(rawState.durationOverrides, crewCount, Math.floor(rounds)),
+  };
+}
+
+function loadFormState() {
+  return normalizeLoadedState(loadJsonState(formStateStorageKey)) || normalizeLoadedState(loadJsonState(legacyFormStateStorageKey));
 }
 
 function sanitizeThemeMode(mode) {
@@ -321,45 +184,6 @@ function registerServiceWorker() {
   });
 }
 
-function parseClock(value, fieldLabel) {
-  const normalized = normalizeClockValue(value);
-  if (!normalized) {
-    throw new Error(
-      `${fieldLabel} must be 24-hour HHMM or HH:MM (example: 1900 or 19:00).`
-    );
-  }
-
-  const [hours, minutes] = normalized.split(":").map(Number);
-  return hours * 60 + minutes;
-}
-
-function parseDuration(value, fieldLabel) {
-  const normalized = normalizeDurationValue(value);
-  if (!normalized) {
-    throw new Error(
-      `${fieldLabel} must be HMM or H:MM (example: 340 or 3:40).`
-    );
-  }
-
-  const [hours, minutes] = normalized.split(":").map(Number);
-  return hours * 60 + minutes;
-}
-
-function formatClock(totalMinutes) {
-  const inDay = ((totalMinutes % 1440) + 1440) % 1440;
-  const h = Math.floor(inDay / 60);
-  const m = inDay % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-}
-
-function formatDuration(totalMinutes) {
-  const sign = totalMinutes < 0 ? "-" : "";
-  const abs = Math.abs(totalMinutes);
-  const hours = Math.floor(abs / 60);
-  const mins = abs % 60;
-  return `${sign}${hours}:${String(mins).padStart(2, "0")}`;
-}
-
 function normalizeClockValue(rawValue) {
   const text = String(rawValue).trim();
   if (!text) {
@@ -391,298 +215,45 @@ function normalizeClockValue(rawValue) {
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
-function normalizeDurationValue(rawValue) {
-  const text = String(rawValue).trim();
-  if (!text) {
-    return "";
+function parseClock(value, fieldLabel) {
+  const normalized = normalizeClockValue(value);
+  if (!normalized) {
+    throw new Error(`${fieldLabel} must be a valid 24-hour time.`);
   }
 
-  let hours;
-  let minutes;
-
-  const withColon = text.match(/^(\d{1,2}):(\d{1,2})$/);
-  if (withColon) {
-    hours = Number(withColon[1]);
-    minutes = Number(withColon[2]);
-  } else if (/^\d{3,4}$/.test(text)) {
-    const splitIndex = text.length - 2;
-    hours = Number(text.slice(0, splitIndex));
-    minutes = Number(text.slice(splitIndex));
-  } else if (/^\d{1,2}$/.test(text)) {
-    hours = Number(text);
-    minutes = 0;
-  } else {
-    return "";
-  }
-
-  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
-    return "";
-  }
-
-  return `${hours}:${String(minutes).padStart(2, "0")}`;
+  const [hours, minutes] = normalized.split(":").map(Number);
+  return hours * 60 + minutes;
 }
 
-function normalizePatternValue(rawValue) {
-  let text = String(rawValue).trim();
-  if (!text) {
-    return "";
-  }
-
-  text = text
-    .replace(/\bshort\b/gi, "S")
-    .replace(/\blong\b/gi, "L")
-    .toUpperCase()
-    .replace(/[\s|/;-]+/g, ",")
-    .replace(/,+/g, ",")
-    .replace(/^,|,$/g, "");
-
-  if (!text) {
-    return "";
-  }
-
-  const tokens = /^[SL]+$/.test(text) ? text.split("") : text.split(",");
-  if (tokens.some((token) => token !== "S" && token !== "L")) {
-    return "";
-  }
-
-  return tokens.join(",");
-}
-
-function parsePatternTokens(rawValue, expectedSlots) {
-  if (!String(rawValue).trim()) {
+function parseDurationPickerValue(value) {
+  const normalized = normalizeClockValue(value);
+  if (!normalized) {
     return null;
   }
-
-  const normalized = normalizePatternValue(rawValue);
-  if (!normalized) {
-    throw new Error(
-      "Pattern order must contain only S or L values (for example S,S,L,L)."
-    );
-  }
-
-  const tokens = normalized.split(",");
-  if (tokens.length !== expectedSlots) {
-    throw new Error(`Pattern order must have exactly ${expectedSlots} entries.`);
-  }
-
-  return tokens;
+  const [hours, minutes] = normalized.split(":").map(Number);
+  return hours * 60 + minutes;
 }
 
-function isEvenPatternSelected() {
-  return String(input.patternSequence.value).trim() === evenPatternValue;
+function formatClock(totalMinutes) {
+  const inDay = ((totalMinutes % 1440) + 1440) % 1440;
+  const h = Math.floor(inDay / 60);
+  const m = inDay % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-function applyTimeNormalization(field) {
-  const normalized = normalizeClockValue(field.value);
-  if (normalized) {
-    field.value = normalized;
-  }
+function formatDuration(totalMinutes) {
+  const sign = totalMinutes < 0 ? "-" : "";
+  const abs = Math.abs(totalMinutes);
+  const hours = Math.floor(abs / 60);
+  const mins = abs % 60;
+  return `${sign}${hours}:${String(mins).padStart(2, "0")}`;
 }
 
-function applyDurationNormalization(field) {
-  const normalized = normalizeDurationValue(field.value);
-  if (normalized) {
-    field.value = normalized;
-  }
-}
-
-function shortBreakFieldForCrew(crew) {
-  if (crew === 1) {
-    return input.shortBreakDuration1;
-  }
-  if (crew === 2) {
-    return input.shortBreakDuration2;
-  }
-  return input.shortBreakDuration3;
-}
-
-// Checkbox-based sync: checked = "same", unchecked = "different"
-function getShortBreakMode() {
-  return input.shortBreakSyncToggle.checked ? "same" : "different";
-}
-
-function syncShortBreaksFromCrew1() {
-  const crewCount = Number(input.crewCount.value);
-  const value = input.shortBreakDuration1.value;
-  for (let crew = 2; crew <= crewCount; crew += 1) {
-    shortBreakFieldForCrew(crew).value = value;
-  }
-}
-
-function setShortBreakMode(mode, options = {}) {
-  const { copyFromCrew1 = true } = options;
-  const normalizedMode = mode === "different" ? "different" : "same";
-  const sameMode = normalizedMode === "same";
-  const crewCount = Number(input.crewCount.value);
-
-  // Update checkbox state
-  input.shortBreakSyncToggle.checked = sameMode;
-
-  input.shortBreakDuration2.disabled = sameMode;
-  input.shortBreakDuration3Wrap.hidden = crewCount < 3;
-  input.shortBreakDuration3.disabled = sameMode || crewCount < 3;
-
-  if (sameMode && copyFromCrew1) {
-    syncShortBreaksFromCrew1();
-  }
-}
-
-function readShortBreakDurationsByCrew(crewCount, shortBreakMode) {
-  const byCrew = {};
-
-  if (shortBreakMode === "same") {
-    const shared = parseDuration(input.shortBreakDuration1.value, "Crew 1 short break");
-    for (let crew = 1; crew <= crewCount; crew += 1) {
-      byCrew[crew] = shared;
-    }
-  } else {
-    for (let crew = 1; crew <= crewCount; crew += 1) {
-      byCrew[crew] = parseDuration(
-        shortBreakFieldForCrew(crew).value,
-        `Crew ${crew} short break`
-      );
-    }
-  }
-
-  const values = Object.values(byCrew);
-  if (values.some((minutes) => minutes <= 0)) {
-    throw new Error("Crew short break durations must be greater than 0.");
-  }
-
-  return byCrew;
-}
-
-function readPatternGenerationConfig() {
-  const rounds = Number(input.rounds.value);
-  const crewCount = Number(input.crewCount.value);
-  const config = {
-    shiftStart: parseClock(input.shiftStart.value, "Off"),
-    shiftEnd: parseClock(input.shiftEnd.value, "All on"),
-    crewCount,
-    rounds,
-    shortBreakDurationsByCrew: null,
-    patternTokens: null,
-  };
-
-  if (!allowedCrewCounts.includes(crewCount) || rounds < 1) {
-    throw new Error("Crew count must be 2 or 3. Check rounds and break duration settings.");
-  }
-
-  if (rounds > 1) {
-    config.shortBreakDurationsByCrew = readShortBreakDurationsByCrew(
-      crewCount,
-      getShortBreakMode()
-    );
-  }
-
-  return config;
-}
-
-function generateEqualRestPatternOptions(config) {
-  if (config.rounds <= 1) {
-    return { options: [], truncated: false };
-  }
-
-  if (config.shortBreakDurationsByCrew && breakWindowLengthNotDivisible(config)) {
-    return { options: [], truncated: false };
-  }
-
-  const order = crewOrder(config.crewCount, config.rounds);
-  const slotIndexesByCrew = Array.from({ length: config.crewCount }, () => []);
-  for (let slotIndex = 0; slotIndex < order.length; slotIndex += 1) {
-    slotIndexesByCrew[order[slotIndex] - 1].push(slotIndex);
-  }
-
-  const patternTokens = Array(order.length).fill("L");
-  const options = [];
-  let candidatesChecked = 0;
-  let truncated = false;
-
-  function evaluateCandidate() {
-    if (truncated) {
-      return false;
-    }
-
-    candidatesChecked += 1;
-    if (candidatesChecked > maxPatternCandidates) {
-      truncated = true;
-      return false;
-    }
-
-    try {
-      const results = calculateSchedule({
-        ...config,
-        patternTokens: [...patternTokens],
-      });
-      const totals = calculateCrewRestTotals(results, config.crewCount);
-      if (new Set(totals).size === 1) {
-        options.push(patternTokens.join(","));
-        if (options.length >= maxPatternOptions) {
-          truncated = true;
-          return false;
-        }
-      }
-    } catch (err) {
-      // Skip invalid combinations.
-    }
-
-    return true;
-  }
-
-  function assignCrewPattern(crewIndex, shortCountPerCrew) {
-    if (truncated) {
-      return false;
-    }
-
-    if (crewIndex >= config.crewCount) {
-      return evaluateCandidate();
-    }
-
-    const crewSlots = slotIndexesByCrew[crewIndex];
-    const chosenSlots = [];
-
-    function chooseSlots(startIndex, picksRemaining) {
-      if (truncated) {
-        return false;
-      }
-
-      if (picksRemaining === 0) {
-        for (const slotIndex of chosenSlots) {
-          patternTokens[slotIndex] = "S";
-        }
-
-        const recurse = assignCrewPattern(crewIndex + 1, shortCountPerCrew);
-
-        for (const slotIndex of chosenSlots) {
-          patternTokens[slotIndex] = "L";
-        }
-
-        return recurse;
-      }
-
-      const maxStart = crewSlots.length - picksRemaining;
-      for (let i = startIndex; i <= maxStart; i += 1) {
-        chosenSlots.push(crewSlots[i]);
-        const shouldContinue = chooseSlots(i + 1, picksRemaining - 1);
-        chosenSlots.pop();
-        if (!shouldContinue) {
-          return false;
-        }
-      }
-
-      return true;
-    }
-
-    return chooseSlots(0, shortCountPerCrew);
-  }
-
-  for (let shortCountPerCrew = 1; shortCountPerCrew < config.rounds; shortCountPerCrew += 1) {
-    if (!assignCrewPattern(0, shortCountPerCrew)) {
-      break;
-    }
-  }
-
-  return { options, truncated };
+function formatDurationForPicker(totalMinutes) {
+  const clamped = Math.max(0, Math.min(23 * 60 + 59, Math.round(totalMinutes)));
+  const hours = Math.floor(clamped / 60);
+  const mins = clamped % 60;
+  return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
 }
 
 function calculateBreakWindowLength(shiftStart, shiftEnd) {
@@ -693,204 +264,105 @@ function calculateBreakWindowLength(shiftStart, shiftEnd) {
   return normalizedEnd - shiftStart;
 }
 
-function breakWindowLengthNotDivisible(config) {
-  const breakWindowLength = calculateBreakWindowLength(
-    config.shiftStart,
-    config.shiftEnd
-  );
-  return breakWindowLength % config.crewCount !== 0;
-}
-
-function setPatternOptions(options, truncated) {
-  const previousValue = input.patternSequence.value;
-  input.patternSequence.innerHTML = "";
-
-  const allOptions = [
-    { value: evenPatternValue, label: evenPatternLabel },
-    ...options.map((pattern) => ({ value: pattern, label: pattern })),
-  ];
-
-  for (const pattern of allOptions) {
-    const option = document.createElement("option");
-    option.value = pattern.value;
-    option.textContent = pattern.label;
-    input.patternSequence.append(option);
-  }
-
-  const optionValues = allOptions.map((option) => option.value);
-  if (optionValues.includes(previousValue)) {
-    input.patternSequence.value = previousValue;
-  } else {
-    input.patternSequence.value = allOptions[0].value;
-  }
-
-  if (isEvenPatternSelected()) {
-    input.patternSequence.title = "Applies evenly distributed break durations for all crews.";
-  } else {
-    input.patternSequence.title = truncated
-      ? "Showing the first equal-rest patterns. Reduce rounds for the full list."
-      : "Choose a pattern option that keeps total rest equal across crews";
-  }
-}
-
-function refreshPatternOptions() {
-  const rounds = Number(input.rounds.value);
-  if (rounds <= 1) {
-    input.patternSequence.innerHTML = "";
-    return;
-  }
-
-  let options = [];
-  let truncated = false;
-
-  try {
-    const config = readPatternGenerationConfig();
-    ({ options, truncated } = generateEqualRestPatternOptions(config));
-  } catch (err) {
-    options = [];
-    truncated = false;
-  }
-
-  setPatternOptions(options, truncated);
-}
-
-function updateBreakInputsVisibility() {
-  const rounds = Number(input.rounds.value);
-  const crewCount = Number(input.crewCount.value);
-  const multiBreak = rounds > 1;
-
-  // Show/hide the entire short breaks section
-  if (shortBreaksSectionEl) {
-    shortBreaksSectionEl.hidden = !multiBreak;
-  }
-
-  input.patternWrap.hidden = !multiBreak;
-  input.patternSequence.required = multiBreak;
-  input.shortBreakSyncToggle.disabled = !multiBreak;
-
-  input.shortBreakDuration1.required = false;
-  input.shortBreakDuration2.required = false;
-  input.shortBreakDuration3.required = false;
-
-  setShortBreakMode(getShortBreakMode(), { copyFromCrew1: multiBreak });
-
-  // Enforce crew 3 visibility last so it always wins
-  input.shortBreakDuration3Wrap.hidden = crewCount < 3;
-  input.shortBreakDuration3.disabled = getShortBreakMode() === "same" || crewCount < 3;
-
-  if (multiBreak) {
-    try {
-      refreshPatternOptions();
-    } catch (err) {
-      // Keep the current options while inputs are mid-edit.
-    }
-  }
-}
-
 function crewOrder(crewCount, rounds) {
-  const base = [];
-  for (let i = 0; i < crewCount; i += 1) {
-    base.push(i + 1);
-  }
-
   const ordered = [];
   for (let round = 0; round < rounds; round += 1) {
-    for (const crew of base) {
+    for (let crew = 1; crew <= crewCount; crew += 1) {
       ordered.push(crew);
     }
   }
-
   return ordered;
+}
+
+function readConfig() {
+  const crewCount = Number(input.crewCount.value);
+  const rounds = Number(input.rounds.value);
+
+  if (!allowedCrewCounts.includes(crewCount) || !Number.isInteger(rounds) || rounds < 1) {
+    throw new Error("Crew count must be 2 or 3 and breaks must be at least 1.");
+  }
+
+  return {
+    shiftStart: parseClock(input.shiftStart.value, "Off duty"),
+    shiftEnd: parseClock(input.shiftEnd.value, "All on"),
+    crewCount,
+    rounds,
+    durationOverrides: sanitizeDurationOverrides(durationOverrides, crewCount, rounds),
+  };
+}
+
+function slotIndexesByCrew(order, crewCount) {
+  const byCrew = Array.from({ length: crewCount }, () => []);
+  for (let index = 0; index < order.length; index += 1) {
+    byCrew[order[index] - 1].push(index);
+  }
+  return byCrew;
+}
+
+function distributeMinutes(totalMinutes, slotCount) {
+  if (slotCount <= 0) {
+    return [];
+  }
+
+  const base = Math.floor(totalMinutes / slotCount);
+  let remainder = totalMinutes - base * slotCount;
+  return Array.from({ length: slotCount }, () => {
+    const value = base + (remainder > 0 ? 1 : 0);
+    if (remainder > 0) {
+      remainder -= 1;
+    }
+    return value;
+  });
 }
 
 function buildSlotDurations(config, breakWindowLength, order) {
   const slotCount = config.crewCount * config.rounds;
+  const durations = Array(slotCount).fill(0);
+  const warnings = [];
+  const target = breakWindowLength / config.crewCount;
+  const targetMinutes = Math.round(target);
 
-  if (config.rounds > 1 && config.patternTokens) {
-    const durations = Array(slotCount).fill(0);
-    const eachCrewTarget = breakWindowLength / config.crewCount;
-    if (!Number.isInteger(eachCrewTarget)) {
-      throw new Error(
-        "Break window cannot be split into equal whole-minute totals across crews."
-      );
-    }
-
-    const slotIndexesByCrew = Array.from({ length: config.crewCount }, () => []);
-    for (let i = 0; i < slotCount; i += 1) {
-      slotIndexesByCrew[order[i] - 1].push(i);
-    }
-
-    for (let i = 0; i < slotCount; i += 1) {
-      const token = config.patternTokens[i];
-      if (token === "S") {
-        if (!config.shortBreakDurationsByCrew) {
-          throw new Error("Short break duration settings are required for this pattern.");
-        }
-        durations[i] = config.shortBreakDurationsByCrew[order[i]];
-      }
-    }
-
-    for (let crew = 1; crew <= config.crewCount; crew += 1) {
-      const crewSlotIndexes = slotIndexesByCrew[crew - 1];
-      const longSlotIndexes = crewSlotIndexes.filter(
-        (slotIndex) => config.patternTokens[slotIndex] === "L"
-      );
-      let crewShortTotal = 0;
-      for (const slotIndex of crewSlotIndexes) {
-        if (config.patternTokens[slotIndex] === "S") {
-          crewShortTotal += durations[slotIndex];
-        }
-      }
-
-      const longTotalNeeded = eachCrewTarget - crewShortTotal;
-      if (longTotalNeeded < 0) {
-        throw new Error(
-          `Crew ${crew} short breaks exceed the equal-rest target for this shift.`
-        );
-      }
-
-      if (!longSlotIndexes.length) {
-        if (longTotalNeeded !== 0) {
-          throw new Error("Pattern cannot produce equal total rest across crews.");
-        }
-        continue;
-      }
-
-      const longBase = Math.floor(longTotalNeeded / longSlotIndexes.length);
-      let longRemainder = longTotalNeeded - longBase * longSlotIndexes.length;
-      for (const slotIndex of longSlotIndexes) {
-        durations[slotIndex] = longBase;
-        if (longRemainder > 0) {
-          durations[slotIndex] += 1;
-          longRemainder -= 1;
-        }
-      }
-    }
-
-    return durations;
+  if (!Number.isInteger(target)) {
+    warnings.push(`Break window ${formatDuration(breakWindowLength)} cannot be split into exact whole-minute totals across ${config.crewCount} crews.`);
   }
 
-  const baseSlotMinutes = Math.floor(breakWindowLength / slotCount);
-  const remainder = breakWindowLength - baseSlotMinutes * slotCount;
-  const durations = Array(slotCount).fill(baseSlotMinutes);
+  const indexesByCrew = slotIndexesByCrew(order, config.crewCount);
+  for (let crewIndex = 0; crewIndex < indexesByCrew.length; crewIndex += 1) {
+    const indexes = indexesByCrew[crewIndex];
+    const manualIndexes = indexes.filter((index) => config.durationOverrides[String(index)] != null);
+    const autoIndexes = indexes.filter((index) => config.durationOverrides[String(index)] == null);
+    const manualTotal = manualIndexes.reduce(
+      (total, index) => total + config.durationOverrides[String(index)],
+      0
+    );
+    const remaining = targetMinutes - manualTotal;
 
-  const extrasByCrew = Array(config.crewCount).fill(
-    Math.floor(remainder / config.crewCount)
-  );
-  for (let crew = 0; crew < remainder % config.crewCount; crew += 1) {
-    extrasByCrew[crew] += 1;
-  }
+    for (const index of manualIndexes) {
+      durations[index] = config.durationOverrides[String(index)];
+    }
 
-  const assignedExtrasByCrew = Array(config.crewCount).fill(0);
-  for (let i = 0; i < slotCount; i += 1) {
-    const crewIndex = order[i] - 1;
-    if (assignedExtrasByCrew[crewIndex] < extrasByCrew[crewIndex]) {
-      durations[i] += 1;
-      assignedExtrasByCrew[crewIndex] += 1;
+    if (remaining < 0) {
+      warnings.push(`Crew ${crewIndex + 1} manually set breaks exceed ${formatDuration(targetMinutes)} by ${formatDuration(Math.abs(remaining))}.`);
+      for (const index of autoIndexes) {
+        durations[index] = 0;
+      }
+      continue;
+    }
+
+    if (autoIndexes.length === 0) {
+      if (remaining !== 0) {
+        warnings.push(`Crew ${crewIndex + 1} total is ${formatDuration(manualTotal)}, not ${formatDuration(targetMinutes)}.`);
+      }
+      continue;
+    }
+
+    const distributed = distributeMinutes(remaining, autoIndexes.length);
+    for (let i = 0; i < autoIndexes.length; i += 1) {
+      durations[autoIndexes[i]] = distributed[i];
     }
   }
 
-  return durations;
+  return { durations, warnings, targetMinutes };
 }
 
 function calculateSchedule(config) {
@@ -909,24 +381,37 @@ function calculateSchedule(config) {
   }
 
   const order = crewOrder(config.crewCount, config.rounds);
-  const slotCount = config.crewCount * config.rounds;
-  const slotDurations = buildSlotDurations(config, breakWindowLength, order);
+  const { durations, warnings, targetMinutes } = buildSlotDurations(config, breakWindowLength, order);
   const slots = [];
 
   let cursor = breakWindowStart;
-  for (let i = 0; i < slotCount; i += 1) {
-    const crew = order[i];
-    const duration = slotDurations[i];
+  for (let index = 0; index < durations.length; index += 1) {
+    const crew = order[index];
+    const duration = durations[index];
     const off = cursor;
     const on = cursor + duration;
     cursor = on;
 
     slots.push({
+      index,
       crew,
       off,
       on,
       duration,
+      isManual: config.durationOverrides[String(index)] != null,
     });
+  }
+
+  const totals = calculateCrewRestTotals(slots, config.crewCount);
+  for (let crewIndex = 0; crewIndex < totals.length; crewIndex += 1) {
+    if (totals[crewIndex] !== targetMinutes) {
+      warnings.push(`Crew ${crewIndex + 1} total is ${formatDuration(totals[crewIndex])}; target is ${formatDuration(targetMinutes)}.`);
+    }
+  }
+
+  const timelineTotal = durations.reduce((total, duration) => total + duration, 0);
+  if (timelineTotal !== breakWindowLength) {
+    warnings.push(`Scheduled break durations total ${formatDuration(timelineTotal)}, but the break window is ${formatDuration(breakWindowLength)}.`);
   }
 
   return {
@@ -934,17 +419,24 @@ function calculateSchedule(config) {
     breakWindowStart,
     breakWindowEnd,
     breakWindowLength,
-    eachCrewTarget: breakWindowLength / config.crewCount,
+    eachCrewTarget: targetMinutes,
+    warnings,
     slots,
   };
 }
 
-function renderSummary(data, config) {
+function calculateCrewRestTotals(slots, crewCount) {
+  const totals = Array(crewCount).fill(0);
+  for (const slot of slots) {
+    totals[slot.crew - 1] += slot.duration;
+  }
+  return totals;
+}
+
+function renderSummary(data) {
   const metrics = [
-    { label: "Crew Count", value: String(config.crewCount) },
-    { label: "Breaks", value: String(config.rounds) },
     { label: "Break Window", value: formatDuration(data.breakWindowLength) },
-    { label: "Each Crew Off", value: formatDuration(Math.round(data.eachCrewTarget)) },
+    { label: "Each Crew Off", value: formatDuration(data.eachCrewTarget) },
   ];
 
   summaryEl.innerHTML = metrics
@@ -959,6 +451,21 @@ function renderSummary(data, config) {
     .join("");
 }
 
+function renderWarnings(warnings) {
+  if (!scheduleWarningEl) {
+    return;
+  }
+
+  if (!warnings.length) {
+    scheduleWarningEl.textContent = "";
+    scheduleWarningEl.hidden = true;
+    return;
+  }
+
+  scheduleWarningEl.hidden = false;
+  scheduleWarningEl.textContent = warnings.join(" ");
+}
+
 function renderSchedule(data) {
   scheduleBodyEl.innerHTML = data.slots
     .map(
@@ -967,111 +474,37 @@ function renderSchedule(data) {
         <td>${slot.crew}</td>
         <td>${formatClock(slot.off)}</td>
         <td>${formatClock(slot.on)}</td>
-        <td>${formatDuration(slot.duration)}</td>
+        <td>
+          <div class="duration-editor">
+            <input
+              class="schedule-duration-input"
+              type="time"
+              step="60"
+              min="00:00"
+              max="23:59"
+              value="${formatDurationForPicker(slot.duration)}"
+              data-slot-index="${slot.index}"
+              aria-label="Crew ${slot.crew} break duration"
+            />
+            <span class="duration-source">${slot.isManual ? "set" : "auto"}</span>
+          </div>
+        </td>
       </tr>
     `
     )
     .join("");
 }
 
-function readConfig() {
-  const rounds = Number(input.rounds.value);
-  const crewCount = Number(input.crewCount.value);
-  const slotCount = crewCount * rounds;
-  const multiBreak = rounds > 1;
-  const selectedPatternValue = String(input.patternSequence.value).trim();
-  const evenMode = multiBreak && selectedPatternValue === evenPatternValue;
-  const patternTokens =
-    multiBreak && !evenMode
-      ? parsePatternTokens(selectedPatternValue, slotCount)
-      : null;
-  const patternUsesShortDurations = Boolean(
-    patternTokens && patternTokens.includes("S")
-  );
-  const config = {
-    shiftStart: parseClock(input.shiftStart.value, "Off"),
-    shiftEnd: parseClock(input.shiftEnd.value, "All on"),
-    crewCount,
-    rounds,
-    shortBreakDurationsByCrew: null,
-    patternTokens,
-  };
-
-  if (
-    !allowedCrewCounts.includes(config.crewCount) ||
-    config.rounds < 1
-  ) {
-    throw new Error(
-      "Crew count must be 2 or 3. Check rounds and break duration settings."
-    );
-  }
-
-  if (multiBreak && !evenMode && !patternTokens) {
-    throw new Error(
-      "No equal-rest pattern is available for the current inputs. Adjust crew settings and try again."
-    );
-  }
-
-  if (patternUsesShortDurations) {
-    config.shortBreakDurationsByCrew = readShortBreakDurationsByCrew(
-      crewCount,
-      getShortBreakMode()
-    );
-  }
-
-  return config;
-}
-
-function runCalculation() {
-  try {
-    errorEl.textContent = "";
-    applyTimeNormalization(input.shiftStart);
-    applyTimeNormalization(input.shiftEnd);
-    if (Number(input.rounds.value) > 1) {
-      refreshPatternOptions();
-      if (String(input.patternSequence.value).trim() && !isEvenPatternSelected()) {
-        if (getShortBreakMode() === "same") {
-          applyDurationNormalization(input.shortBreakDuration1);
-          syncShortBreaksFromCrew1();
-        } else {
-          const crewCount = Number(input.crewCount.value);
-          for (let crew = 1; crew <= crewCount; crew += 1) {
-            applyDurationNormalization(shortBreakFieldForCrew(crew));
-          }
-        }
-      }
-    }
-    const config = readConfig();
-    const results = calculateSchedule(config);
-    renderSummary(results, config);
-    renderSchedule(results);
-  } catch (err) {
-    summaryEl.innerHTML = "";
-    scheduleBodyEl.innerHTML = "";
-    errorEl.textContent = err.message;
-  }
-}
-
 function captureFormState() {
+  const crewCount = Number(input.crewCount.value);
+  const rounds = Number(input.rounds.value);
   return {
-    shiftStart: input.shiftStart.value,
-    shiftEnd: input.shiftEnd.value,
+    shiftStart: normalizeClockValue(input.shiftStart.value) || input.shiftStart.value,
+    shiftEnd: normalizeClockValue(input.shiftEnd.value) || input.shiftEnd.value,
     crewCount: input.crewCount.value,
     rounds: input.rounds.value,
-    shortBreakDuration1: input.shortBreakDuration1.value,
-    shortBreakDuration2: input.shortBreakDuration2.value,
-    shortBreakDuration3: input.shortBreakDuration3.value,
-    patternSequence: input.patternSequence.value,
-    shortBreakMode: getShortBreakMode(),
+    durationOverrides: sanitizeDurationOverrides(durationOverrides, crewCount, rounds),
   };
-}
-
-function formStatesMatch(a, b) {
-  if (!a || !b) {
-    return false;
-  }
-
-  return Object.keys(a).every((key) => a[key] === b[key]);
 }
 
 function applyFormState(state) {
@@ -1083,142 +516,82 @@ function applyFormState(state) {
   input.shiftEnd.value = state.shiftEnd;
   input.crewCount.value = state.crewCount;
   input.rounds.value = state.rounds;
-  input.shortBreakDuration1.value = state.shortBreakDuration1;
-  input.shortBreakDuration2.value = state.shortBreakDuration2;
-  input.shortBreakDuration3.value = state.shortBreakDuration3;
-  input.patternSequence.value = state.patternSequence;
-
-  setShortBreakMode(state.shortBreakMode, { copyFromCrew1: false });
-  updateBreakInputsVisibility();
-
-  input.shortBreakDuration1.value = state.shortBreakDuration1;
-  input.shortBreakDuration2.value = state.shortBreakDuration2;
-  input.shortBreakDuration3.value = state.shortBreakDuration3;
-  input.patternSequence.value = state.patternSequence;
-  setShortBreakMode(state.shortBreakMode, { copyFromCrew1: false });
-  if (state.shortBreakMode === "same") {
-    syncShortBreaksFromCrew1();
-  }
+  durationOverrides = sanitizeDurationOverrides(
+    state.durationOverrides,
+    Number(state.crewCount),
+    Number(state.rounds)
+  );
 }
 
-function calculateCrewRestTotals(results, crewCount) {
-  const totals = Array(crewCount).fill(0);
-  for (const slot of results.slots) {
-    totals[slot.crew - 1] += slot.duration;
-  }
-  return totals;
-}
-
-function buildUnevenRestWarning(totals) {
-  const lines = totals
-    .map((minutes, index) => `Crew ${index + 1}: ${formatDuration(minutes)}`)
-    .join("\n");
-  return `Warning: this selection gives crews different total rest periods.\n\n${lines}\n\nPress OK to keep this selection, or Cancel to undo it so you can correct the selection.`;
-}
-
-function guardSelectionChange() {
-  if (isRevertingSelection) {
-    return;
-  }
-
-  if (Number(input.rounds.value) > 1) {
-    try {
-      refreshPatternOptions();
-    } catch (err) {
-      runCalculation();
-      return;
-    }
-  }
-
-  const currentState = captureFormState();
-  if (formStatesMatch(currentState, lastAcceptedState)) {
-    runCalculation();
-    return;
-  }
-
+function runCalculation() {
   try {
+    errorEl.textContent = "";
+    input.shiftStart.value = normalizeClockValue(input.shiftStart.value) || input.shiftStart.value;
+    input.shiftEnd.value = normalizeClockValue(input.shiftEnd.value) || input.shiftEnd.value;
+
     const config = readConfig();
+    durationOverrides = config.durationOverrides;
     const results = calculateSchedule(config);
-    const totals = calculateCrewRestTotals(results, config.crewCount);
-    const isUneven = new Set(totals).size > 1;
-
-    if (isUneven) {
-      const keepSelection = window.confirm(buildUnevenRestWarning(totals));
-      if (!keepSelection) {
-        isRevertingSelection = true;
-        applyFormState(lastAcceptedState);
-        isRevertingSelection = false;
-        runCalculation();
-        return;
-      }
-    }
-
-    lastAcceptedState = currentState;
-    saveFormState(lastAcceptedState);
-    runCalculation();
+    renderSummary(results);
+    renderWarnings(results.warnings);
+    renderSchedule(results);
+    saveFormState(captureFormState());
   } catch (err) {
-    runCalculation();
+    summaryEl.innerHTML = "";
+    scheduleBodyEl.innerHTML = "";
+    renderWarnings([]);
+    errorEl.textContent = err.message;
   }
 }
 
-input.crewCount.addEventListener("change", () => {
-  updateBreakInputsVisibility();
-  guardSelectionChange();
-});
-input.rounds.addEventListener("change", () => {
-  updateBreakInputsVisibility();
-  guardSelectionChange();
-});
-input.shortBreakSyncToggle.addEventListener("change", () => {
-  setShortBreakMode(getShortBreakMode());
-  guardSelectionChange();
-});
-input.shiftStart.addEventListener("blur", () => {
-  applyTimeNormalization(input.shiftStart);
-  guardSelectionChange();
-});
-input.shiftEnd.addEventListener("blur", () => {
-  applyTimeNormalization(input.shiftEnd);
-  guardSelectionChange();
-});
-input.shortBreakDuration1.addEventListener("input", () => {
-  if (getShortBreakMode() === "same") {
-    syncShortBreaksFromCrew1();
+function clearDurationOverridesOutsideCurrentShape() {
+  const crewCount = Number(input.crewCount.value);
+  const rounds = Number(input.rounds.value);
+  durationOverrides = sanitizeDurationOverrides(durationOverrides, crewCount, rounds);
+}
+
+function handleCoreInputChange() {
+  clearDurationOverridesOutsideCurrentShape();
+  runCalculation();
+}
+
+input.crewCount.addEventListener("change", handleCoreInputChange);
+input.rounds.addEventListener("change", handleCoreInputChange);
+input.shiftStart.addEventListener("change", handleCoreInputChange);
+input.shiftEnd.addEventListener("change", handleCoreInputChange);
+input.shiftStart.addEventListener("blur", handleCoreInputChange);
+input.shiftEnd.addEventListener("blur", handleCoreInputChange);
+
+scheduleBodyEl.addEventListener("change", (event) => {
+  const durationInput = event.target.closest?.(".schedule-duration-input");
+  if (!durationInput) {
+    return;
   }
-});
-input.shortBreakDuration1.addEventListener("blur", () => {
-  applyDurationNormalization(input.shortBreakDuration1);
-  if (getShortBreakMode() === "same") {
-    syncShortBreaksFromCrew1();
+
+  const slotIndex = String(durationInput.dataset.slotIndex || "");
+  const minutes = parseDurationPickerValue(durationInput.value);
+  if (minutes == null) {
+    delete durationOverrides[slotIndex];
+  } else {
+    durationOverrides[slotIndex] = minutes;
   }
-  guardSelectionChange();
+  runCalculation();
 });
-input.shortBreakDuration2.addEventListener("blur", () => {
-  applyDurationNormalization(input.shortBreakDuration2);
-  guardSelectionChange();
-});
-input.shortBreakDuration3.addEventListener("blur", () => {
-  applyDurationNormalization(input.shortBreakDuration3);
-  guardSelectionChange();
-});
-input.patternSequence.addEventListener("change", () => {
-  guardSelectionChange();
+
+resetDurationsButton?.addEventListener("click", () => {
+  durationOverrides = {};
+  runCalculation();
 });
 
 applyTheme();
 bindThemeControls();
 bindThemeAutoUpdates();
-bindTransferControls();
 
 const persistedState = loadFormState();
 if (persistedState) {
   applyFormState(persistedState);
-} else {
-  updateBreakInputsVisibility();
 }
 runCalculation();
-lastAcceptedState = captureFormState();
-saveFormState(lastAcceptedState);
 registerServiceWorker();
 
 window.addEventListener("beforeunload", () => {
