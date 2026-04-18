@@ -207,13 +207,14 @@ body {
   display: grid;
   grid-template-columns: 320px 1fr;
   gap: 0.75rem;
-  align-items: start;
+  align-items: stretch;
 }
 
 .results-column {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  min-height: 100%;
 }
 
 /* ── Card ─────────────────────────────────────── */
@@ -224,6 +225,11 @@ body {
   border-radius: var(--radius-md);
   padding: 1rem 1.1rem;
   box-shadow: var(--card-shadow);
+}
+
+.controls,
+.results-column > .card {
+  min-height: 430px;
 }
 
 .card h2 {
