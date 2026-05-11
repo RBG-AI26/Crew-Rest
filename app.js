@@ -24,6 +24,8 @@ const defaultThemeMode = "day";
 let durationOverrides = {};
 let activeTimePicker = null;
 const wheelScrollFrames = {};
+const wheelRepeatCount = 7;
+const wheelCenterRepeat = Math.floor(wheelRepeatCount / 2);
 let suppressWheelScroll = false;
 
 function saveFormState(state) {
@@ -246,18 +248,22 @@ function renderWheelValues(container, selectedValue, max, unit) {
 
   container.dataset.wheel = unit;
   container.dataset.max = String(max);
-  container.innerHTML = Array.from({ length: max }, (_, value) => value)
-    .map((value) => {
+  container.dataset.repeatCount = String(wheelRepeatCount);
+  container.innerHTML = Array.from({ length: wheelRepeatCount }, (_, repeatIndex) =>
+    Array.from({ length: max }, (_, value) => {
       const isSelected = value === selectedValue;
       return `
-        <button
-          type="button"
-          class="wheel-value${isSelected ? " is-selected" : ""}"
-          data-wheel="${unit}"
-          data-value="${value}"
-        >${String(value).padStart(2, "0")}</button>
-      `;
-    })
+          <button
+            type="button"
+            class="wheel-value${isSelected ? " is-selected" : ""}"
+            data-wheel="${unit}"
+            data-value="${value}"
+            data-repeat="${repeatIndex}"
+            aria-pressed="${isSelected ? "true" : "false"}"
+          >${String(value).padStart(2, "0")}</button>
+        `;
+    }).join("")
+  )
     .join("");
 }
 
@@ -278,7 +284,10 @@ function scrollWheelToValue(container, selectedValue, smooth = false) {
     return;
   }
 
-  const selectedButton = container.querySelector(`.wheel-value[data-value="${selectedValue}"]`);
+  const selectedButton =
+    container.querySelector(
+      `.wheel-value[data-value="${selectedValue}"][data-repeat="${wheelCenterRepeat}"]`
+    ) || container.querySelector(`.wheel-value[data-value="${selectedValue}"]`);
   if (!selectedButton) {
     return;
   }
@@ -385,15 +394,15 @@ function selectedPickerMinutes() {
   return activeTimePicker.hour * 60 + activeTimePicker.minute;
 }
 
-function selectedWheelValue(container) {
+function selectedWheelItem(container) {
   if (!container) {
-    return 0;
+    return null;
   }
 
   const center = container.scrollTop + container.clientHeight / 2;
   const values = Array.from(container.querySelectorAll(".wheel-value"));
   if (!values.length) {
-    return 0;
+    return null;
   }
 
   let nearest = values[0];
@@ -407,7 +416,37 @@ function selectedWheelValue(container) {
     }
   }
 
-  return Number(nearest.dataset.value || 0);
+  return {
+    value: Number(nearest.dataset.value || 0),
+    repeat: Number(nearest.dataset.repeat || 0),
+  };
+}
+
+function recenterWheelIfNeeded(container, selectedItem) {
+  if (!container || !selectedItem) {
+    return;
+  }
+
+  const max = Number(container.dataset.max || 0);
+  const repeatCount = Number(container.dataset.repeatCount || 0);
+  const isNearEdge = selectedItem.repeat <= 1 || selectedItem.repeat >= repeatCount - 2;
+  if (!max || repeatCount < 3 || !isNearEdge) {
+    return;
+  }
+
+  const target = container.querySelector(
+    `.wheel-value[data-value="${selectedItem.value}"][data-repeat="${wheelCenterRepeat}"]`
+  );
+  if (!target) {
+    return;
+  }
+
+  const targetTop = target.offsetTop - (container.clientHeight - target.offsetHeight) / 2;
+  suppressWheelScroll = true;
+  container.scrollTo({ top: targetTop, behavior: "auto" });
+  requestAnimationFrame(() => {
+    suppressWheelScroll = false;
+  });
 }
 
 function applyActivePickerValue() {
@@ -467,7 +506,12 @@ function handleWheelScroll(container) {
 
   cancelAnimationFrame(wheelScrollFrames[part]);
   wheelScrollFrames[part] = requestAnimationFrame(() => {
-    setPickerPart(part, selectedWheelValue(container), { syncScroll: false });
+    const selectedItem = selectedWheelItem(container);
+    if (!selectedItem) {
+      return;
+    }
+    setPickerPart(part, selectedItem.value, { syncScroll: false });
+    recenterWheelIfNeeded(container, selectedItem);
   });
 }
 
