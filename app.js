@@ -252,6 +252,7 @@ function renderWheelValues(container, selectedValue, max, unit) {
   container.innerHTML = Array.from({ length: wheelRepeatCount }, (_, repeatIndex) =>
     Array.from({ length: max }, (_, value) => {
       const isSelected = value === selectedValue;
+      const isCenterRepeat = repeatIndex === wheelCenterRepeat;
       return `
           <button
             type="button"
@@ -259,7 +260,7 @@ function renderWheelValues(container, selectedValue, max, unit) {
             data-wheel="${unit}"
             data-value="${value}"
             data-repeat="${repeatIndex}"
-            aria-pressed="${isSelected ? "true" : "false"}"
+            aria-pressed="${isSelected && isCenterRepeat ? "true" : "false"}"
           >${String(value).padStart(2, "0")}</button>
         `;
     }).join("")
@@ -274,8 +275,9 @@ function updateWheelSelection(container, selectedValue) {
 
   container.querySelectorAll(".wheel-value").forEach((button) => {
     const isSelected = Number(button.dataset.value) === selectedValue;
+    const isCenterRepeat = Number(button.dataset.repeat || 0) === wheelCenterRepeat;
     button.classList.toggle("is-selected", isSelected);
-    button.setAttribute("aria-pressed", isSelected ? "true" : "false");
+    button.setAttribute("aria-pressed", isSelected && isCenterRepeat ? "true" : "false");
   });
 }
 
