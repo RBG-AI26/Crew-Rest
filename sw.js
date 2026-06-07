@@ -1,4 +1,4 @@
-const CACHE_NAME = "crew-rest-cache-v19";
+const CACHE_NAME = "crew-rest-cache-v20";
 const CORE_ASSETS = [
   "./",
   "./index.html",
@@ -8,11 +8,7 @@ const CORE_ASSETS = [
   "./offline.html",
   "./icons/favicon-16.png",
   "./icons/favicon-32.png",
-  "./icons/icon-152.png",
-  "./icons/icon-167.png",
-  "./icons/icon-180.png",
   "./icons/icon-192.png",
-  "./icons/icon-512.png",
 ];
 
 function isAppShellAsset(url) {
@@ -47,6 +43,40 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+async function cacheResponse(request, response) {
+  if (!response || response.status !== 200) {
+    return;
+  }
+
+  const cache = await caches.open(CACHE_NAME);
+  await cache.put(request, response.clone());
+}
+
+function refreshCache(request) {
+  return fetch(request)
+    .then((response) => {
+      cacheResponse(request, response).catch(() => {});
+      return response;
+    });
+}
+
+async function cacheFirst(request, fallbackUrl) {
+  const cachedResponse = await caches.match(request);
+  if (cachedResponse) {
+    refreshCache(request).catch(() => {});
+    return cachedResponse;
+  }
+
+  try {
+    return await refreshCache(request);
+  } catch (err) {
+    if (fallbackUrl) {
+      return caches.match(fallbackUrl);
+    }
+    throw err;
+  }
+}
+
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") {
     return;
@@ -58,39 +88,12 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (event.request.mode === "navigate") {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put("./index.html", responseClone);
-          });
-          return response;
-        })
-        .catch(async () => {
-          const cache = await caches.open(CACHE_NAME);
-          return (
-            (await cache.match(event.request)) ||
-            (await cache.match("./index.html")) ||
-            (await cache.match("./offline.html"))
-          );
-        })
-    );
+    event.respondWith(cacheFirst(event.request, "./offline.html"));
     return;
   }
 
   if (isAppShellAsset(requestUrl)) {
-    event.respondWith(
-      fetch(event.request)
-        .then((networkResponse) => {
-          const responseClone = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseClone);
-          });
-          return networkResponse;
-        })
-        .catch(() => caches.match(event.request))
-    );
+    event.respondWith(cacheFirst(event.request));
     return;
   }
 
@@ -98,13 +101,7 @@ self.addEventListener("fetch", (event) => {
     caches.match(event.request).then(
       (cachedResponse) =>
         cachedResponse ||
-        fetch(event.request).then((networkResponse) => {
-          const responseClone = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseClone);
-          });
-          return networkResponse;
-        })
+        refreshCache(event.request)
     )
   );
 });
